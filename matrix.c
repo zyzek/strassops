@@ -228,16 +228,11 @@ uint32_t* transposed(const uint32_t* matrix) {
 uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
 
     uint32_t* result = new_matrix();
+    
 
-    /*
-        to do
-
-        1 0        2 1
-        0 1 + 1 => 1 2
-
-        1 2        5 6
-        3 4 + 4 => 7 8
-    */
+    for (ssize_t i = 0; i < g_elements; ++i) {
+        result[i] = matrix[i] + scalar;
+    }
 
     return result;
 }
@@ -249,16 +244,10 @@ uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar) {
 
     uint32_t* result = new_matrix();
 
-    /*
-        to do
-
-        1 0        2 0
-        0 1 x 2 => 0 2
-
-        1 2        2 4
-        3 4 x 2 => 6 8
-    */
-
+    for (ssize_t i = 0; i < g_elements; ++i) {
+        result[i] = matrix[i] * scalar;
+    }
+    
     return result;
 }
 
@@ -269,16 +258,10 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 
     uint32_t* result = new_matrix();
 
-    /*
-        to do
-
-        1 0   0 1    1 1
-        0 1 + 1 0 => 1 1
-
-        1 2   4 4    5 6
-        3 4 + 4 4 => 7 8
-    */
-
+    for (ssize_t i = 0; i < g_elements; ++i) {
+        result[i] = matrix_a[i] + matrix_b[i];
+    }
+    
     return result;
 }
 
@@ -288,16 +271,14 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 
     uint32_t* result = new_matrix();
-
-    /*
-        to do
-
-        1 2   1 0    1 2
-        3 4 x 0 1 => 3 4
-
-        1 2   5 6    19 22
-        3 4 x 7 8 => 43 50
-    */
+    
+    for (ssize_t y = 0; y < g_height; y++) {
+        for (ssize_t x = 0; x < g_width; x++) {
+            for (ssize_t k = 0; k < g_width; k++) {
+                result[y * g_width + x] += matrix_a[y * g_width + k] * matrix_b[k * g_width + x];
+            }
+        }
+    }
 
     return result;
 }
@@ -307,20 +288,23 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
  */
 uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
-    uint32_t* result = new_matrix();
+    /*if (exponent == 0) {
+        return identity_matrix();
+    }
+    else if (exponent == 1) {
+        return cloned(matrix);
+    }*/
+    
+    uint32_t* result = identity_matrix();
+    
+    for (uint32_t i = 0; i < exponent; ++i) {
+        uint32_t* tmp = result;
+        result = matrix_mul(result, matrix);
+        free(tmp);
+    }
+    
 
-    /*
-        to do
-
-        1 2        1 0
-        3 4 ^ 0 => 0 1
-
-        1 2        1 2
-        3 4 ^ 1 => 3 4
-
-        1 2        199 290
-        3 4 ^ 4 => 435 634
-    */
+    // TODO: diagonalisation
 
     return result;
 }
@@ -343,8 +327,14 @@ uint32_t get_sum(const uint32_t* matrix) {
         1 1
         1 1 => 4
     */
+    uint32_t sum = 0;
 
-    return 0;
+    for (uint32_t i = 0; i < g_elements; ++i) {
+        sum += matrix[i];
+    }
+
+
+    return sum;
 }
 
 /**
@@ -362,7 +352,13 @@ uint32_t get_trace(const uint32_t* matrix) {
         1 2 => 4
     */
 
-    return 0;
+    uint32_t trace = 0;
+
+    for (uint32_t i = 0; i < g_width; ++i) {
+        trace += matrix[i * g_width + i];
+    }
+
+    return trace;
 }
 
 /**
@@ -370,6 +366,14 @@ uint32_t get_trace(const uint32_t* matrix) {
  */
 uint32_t get_minimum(const uint32_t* matrix) {
 
+    uint32_t min = matrix[0];
+
+    for (uint32_t i = 1; i < g_elements; ++i) {
+        if (matrix[i] < min) {
+            min = matrix[i];
+        }
+    } 
+    
     /*
         to do
 
@@ -380,7 +384,7 @@ uint32_t get_minimum(const uint32_t* matrix) {
         2 1 => 1
     */
 
-    return 0;
+    return min;
 }
 
 /**
@@ -388,6 +392,13 @@ uint32_t get_minimum(const uint32_t* matrix) {
  */
 uint32_t get_maximum(const uint32_t* matrix) {
 
+    uint32_t max = matrix[0];
+
+    for (uint32_t i = 1; i < g_elements; ++i) {
+        if (matrix[i] > max) {
+            max = matrix[i];
+        }
+    }
     /*
         to do
 
@@ -398,13 +409,19 @@ uint32_t get_maximum(const uint32_t* matrix) {
         2 1 => 4
     */
 
-    return 0;
+    return max;
 }
 
 /**
  * Returns the frequency of the value in the matrix
  */
 uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
+    
+    uint32_t freq = 0;
+
+    for (uint32_t i = 0; i < g_elements; ++i) {
+        if (matrix[i] == value) ++freq;
+    }
 
     /*
         to do
@@ -416,5 +433,5 @@ uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
         0 1 :: 2 => 0
     */
 
-    return 0;
+    return freq;
 }
