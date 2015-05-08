@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <inttypes.h>
 
+#include <time.h>
+
 #include "matrix.h"
 
 #define MAX_BUFFER 256
@@ -388,13 +390,31 @@ void compute_engine(void) {
     }
 }
 
+
+void test(void) {
+    uint32_t* matrix = sequence_matrix(1, 2);
+    free(matrix_pow(matrix, 5));
+    free(matrix);
+}
+
 /**
  * Main function
  */
 int main(int argc, char** argv)
 {
     define_settings(argc, argv);
-    compute_engine();
+    //compute_engine();
+
+    clock_t begin, end;
+    double time_spent;
+
+    begin = clock();
+    test();
+    end = clock();
+
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+
+    printf("Time elapsed: %.2f\n", time_spent);
 
     return 0;
 }
