@@ -393,7 +393,7 @@ void compute_engine(void) {
 
 void test(void) {
     uint32_t* matrix = sequence_matrix(1, 2);
-    free(matrix_pow(matrix, 5));
+    free(matrix_pow(matrix, 100));
     free(matrix);
 }
 

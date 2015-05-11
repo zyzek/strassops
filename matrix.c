@@ -6,7 +6,11 @@
 #include <pthread.h>
 #include <inttypes.h>
 
+#include <string.h>
+
 #include "matrix.h"
+
+#define STRASS_THRESH 200
 
 static uint32_t g_seed = 0;
 
@@ -158,6 +162,15 @@ uint32_t* uniform_matrix(uint32_t value) {
     return matrix;
 }
 
+uint32_t* uniform_matrix_nomem(uint32_t value, uint32_t* matrix) {
+
+    for (ssize_t i = 0; i < g_elements; i++) {
+        matrix[i] = value;
+    }
+
+    return matrix;
+}
+
 /**
  * Returns new matrix with elements in sequence from given start and step
  */
@@ -229,7 +242,6 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
 
     uint32_t* result = new_matrix();
     
-
     for (ssize_t i = 0; i < g_elements; ++i) {
         result[i] = matrix[i] + scalar;
     }
@@ -266,42 +278,247 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 }
 
 /**
+ * Assumes result is already zeroed.
+ */
+void matrix_mul_nomem(const uint32_t* matrix_a, const uint32_t* matrix_b, uint32_t* result) {
+
+    for (ssize_t y = 0; y < g_height; y++) {
+        for (ssize_t k = 0; k < g_width; k++) {
+            for (ssize_t x = 0; x < g_width; x++) {
+                result[y * g_width + x] += matrix_a[y * g_width + k] * matrix_b[k * g_width + x];
+            }
+        }
+    }
+}
+
+/**
  * Returns new matrix, multiplying the two matrices together
  */
 uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 
     uint32_t* result = new_matrix();
     
-    for (ssize_t y = 0; y < g_height; y++) {
-        for (ssize_t x = 0; x < g_width; x++) {
-            for (ssize_t k = 0; k < g_width; k++) {
-                result[y * g_width + x] += matrix_a[y * g_width + k] * matrix_b[k * g_width + x];
-            }
-        }
-    }
+    //TODO: another matrix_mul_nomem that doesn't 0 elements as it goes.
+    matrix_mul_nomem(matrix_a, matrix_b, result);  
 
     return result;
 }
+
+void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, 
+                 const uint32_t* b, ssize_t bw, ssize_t bh, 
+                 uint32_t* c) {
+    ssize_t max_w = (aw > bw ? aw : bw);
+    ssize_t max_h = (ah > bh ? ah : bh);
+    
+    for (ssize_t i = 0; i < max_h - 1; ++i) {
+        for (ssize_t j = 0; j < max_w - 1; ++j) {
+           c[max_w*i + j] = a[max_w*i + j] + b[max_w*i + j];
+        }
+    }
+
+    if (aw > bw) {
+        for (ssize_t i = 1; i < max_h - 1; ++i) {
+            c[max_w*i - 1] = a[max_w*i - 1];
+        }
+    } else if (aw < bw) {
+        for (ssize_t i = 1; i < max_h - 1; ++i) {
+            c[max_w*i - 1] = b[max_w*i - 1];
+        }
+    } else {
+        for (ssize_t i = 1; i < max_h - 1; ++i) {
+            c[max_w*i - 1] = a[max_w*i - 1] + b[max_w*i - 1];
+        }
+    }
+
+    if (ah > bh) {
+        for (ssize_t j = 0; j < max_w - 1; ++j) {
+            c[max_h - 1 + j] = a[max_h - 1 + j];
+        }
+    } else if (ah < bh) {
+        for (ssize_t j = 0; j < max_w - 1; ++j) {
+            c[max_h - 1 + j] = b[max_h - 1 + j];
+        }
+    } else {
+        for (ssize_t j = 1; j < max_w - 1; ++j) {
+            c[max_h - 1 + j] = a[max_h - 1 + j] + b[max_h - 1 + j];
+        }
+    }
+
+    if (ah == bh && aw == bw) {
+        c[max_w*max_h - 1] = a[max_w*max_h - 1] + b[max_w*max_h - 1];
+    } 
+    
+}
+
+void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, 
+                 const uint32_t* b, ssize_t bw, ssize_t bh, 
+                 uint32_t* c) {
+    ssize_t max_w = (aw > bw ? aw : bw);
+    ssize_t max_h = (ah > bh ? ah : bh);
+    
+    for (ssize_t i = 0; i < max_h - 1; ++i) {
+        for (ssize_t j = 0; j < max_w - 1; ++j) {
+           c[max_w*i + j] = a[max_w*i + j] - b[max_w*i + j];
+        }
+    }
+
+    if (aw > bw) {
+        for (ssize_t i = 1; i < max_h - 1; ++i) {
+            c[max_w*i - 1] = a[max_w*i - 1];
+        }
+    } else if (aw < bw) {
+        for (ssize_t i = 1; i < max_h - 1; ++i) {
+            c[max_w*i - 1] = 0 - b[max_w*i - 1];
+        }
+    } else {
+        for (ssize_t i = 1; i < max_h - 1; ++i) {
+            c[max_w*i - 1] = a[max_w*i - 1] - b[max_w*i - 1];
+        }
+    }
+
+    if (ah > bh) {
+        for (ssize_t j = 0; j < max_w - 1; ++j) {
+            c[max_h - 1 + j] = a[max_h - 1 + j];
+        }
+    } else if (ah < bh) {
+        for (ssize_t j = 0; j < max_w - 1; ++j) {
+            c[max_h - 1 + j] = 0 - b[max_h - 1 + j];
+        }
+    } else {
+        for (ssize_t j = 1; j < max_w - 1; ++j) {
+            c[max_h - 1 + j] = a[max_h - 1 + j] - b[max_h - 1 + j];
+        }
+    }
+
+    if (ah == bh && aw == bw) {
+        c[max_w*max_h - 1] = a[max_w*max_h - 1] - b[max_w*max_h - 1];
+    } 
+    
+}
+
+void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, 
+                 const uint32_t* b, ssize_t bw, ssize_t bh, 
+                 uint32_t* c) {
+
+        ssize_t min_p = (aw < bh ? aw : bh);
+        ssize_t max_w = (aw < bw ? aw : bw);
+
+        for (ssize_t y = 0; y < ah; y++) {
+            for (ssize_t k = 0; k < min_p; k++) {
+                for (ssize_t x = 0; x < bw; x++) {
+                    c[y * max_w + x] += a[y * g_width + k] * b[k * g_width + x];
+                }
+            }
+        }
+}
+
+void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, 
+              const uint32_t* b, ssize_t bw, ssize_t bh, 
+              uint32_t* c) {
+    
+    
+    // Get largest dimension
+    ssize_t n = (aw > bw ? aw : bw);
+    ssize_t m = (ah > bh ? ah : bh);
+    n = (n > m ? n : m);
+    
+    if (n <= STRASS_THRESH) {
+        strass_mul(a, aw, ah, b, bw, bh, c);
+        return;
+    } else {
+    
+        m = (n&1 ? (n+1)/2 : n/2); 
+        n = m*m;
+
+        // Pointers to each quadrant of input matrices
+        
+        ssize_t a11w = aw&1 ? (aw+1)/2 : aw/2;
+        ssize_t a11h = ah&1 ? (ah+1)/2 : ah/2;
+        ssize_t a22w = aw-a11w;
+        ssize_t a22h = ah-a11h;
+        ssize_t b11w = bw&1 ? (bw+1)/2 : bw/2;
+        ssize_t b11h = bh&1 ? (bh+1)/2 : bh/2;
+        ssize_t b22w = bw-b11w;
+        ssize-t b22h = bh-b11h;
+
+        uint32_t* a11 = a;
+        uint32_t* a12 = a + a11w;
+        uint32_t* a21 = a + g_width*a11h;
+        uint32_t* a22 = a21 + a11w;
+        uint32_t* b11 = b;
+        uint32_t* b12 = b + b11w;
+        uint32_t* b21 = b + g_width*b11h;
+        uint32_t* b22 = b21 + b11w;
+        
+        //TODO: consider zeroing fewer of these, when multiplications happen, instead of calloc
+        uint32_t* S = (uint32_t*)calloc(11, sizeof(uint32_t) * n);
+        strass_sub(b12, b22w, b11h, b22, b22w, b22h, S + n);
+        strass_add(a11, a11w, a11h, a12, a22w, a11h, S + 2*n);
+        strass_sub(b21, b11w, b22h, b11, b11w, b11h, S + 3*n);
+        strass_add(a11, a11w, a11h, a22, a22w, a22h, S + 4*n);
+        strass_add(b11, b11w, b11h, b22, b22w, b22h, S + 5*n);
+        strass_sub(a12, a22w, a11h, a22, a22w, a22h, S + 6*n);
+        strass_add(b21, b11w, b22h, b22, b22w, b22h, S + 7*n);
+        strass_sub(a11, a11w, a11h, a21, a11w, a22h, S + 8*n);
+        strass_add(b11, b11w, b11h, b12, b22w, b11h, S + 9*n);
+        strass_add(a21, a11w, a22h, a22, a22w, a22h, S + 10*n);
+        
+        //P1 = A11*S1
+        strassen(a11, a11w, a11h, S + n, m, m, S);
+        //P2 = S2*B22
+        strassen(S + 2*n, m, m, b22, b22w, b22h, S + n);
+        //P3 = S3*B11
+        strassen(S + 3*n, m, m, b11, b11w, b11h, S + 2*n);
+        //P4 = A22*S4
+        strassen(a22, a22w, a22h, S + 4*n, m, m, S + 3*n);
+        //P5 = S5*S6
+        strassen(S + 5*n, m, m, S + 6*n, m, m, S + 4*n);
+        //P6 = S7*S8
+        strassen(S + 7*n, m, m, S + 8*n, m, m, S + 5*n);
+        //P7 = S9*S10
+        strassen(S + 9*n, m, m, S + 10*n, m, m, S + 6*n);
+        
+        
+
+        free(S);
+    }
+}
+
 
 /**
  * Returns new matrix, powering the matrix to the exponent
  */
 uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
-
-    /*if (exponent == 0) {
-        return identity_matrix();
-    }
-    else if (exponent == 1) {
-        return cloned(matrix);
-    }*/
+    
     
     uint32_t* result = identity_matrix();
     
-    for (uint32_t i = 0; i < exponent; ++i) {
-        uint32_t* tmp = result;
-        result = matrix_mul(result, matrix);
-        free(tmp);
+    if (exponent == 0) return result;
+    int width = 32 -__builtin_clz(exponent);
+
+    uint32_t* mpowers = (uint32_t *)calloc(width, sizeof(uint32_t)*g_elements);
+
+    for (int i = 0; i < width; ++i) {
+        if (i == 0) {
+            memcpy(mpowers, matrix, g_elements*sizeof(uint32_t));
+        } else {
+            matrix_mul_nomem((mpowers + g_elements*(i-1)), (mpowers + g_elements*(i-1)), (mpowers + g_elements*i));
+        }
     }
+    
+    uint32_t* temp = new_matrix();
+
+    for (uint32_t i = 0; i < width; ++i) {
+        if (exponent & (1 << i)) {
+            matrix_mul_nomem(result, (mpowers + g_elements*i), temp);
+            
+            uint32_t* swap = result;
+            result = temp;
+            temp = swap;
+        }
+    }
+    free(mpowers);
+    free(temp);
     
 
     // TODO: diagonalisation
