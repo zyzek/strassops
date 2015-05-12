@@ -33,6 +33,20 @@ uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar);
 uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent);
 uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b);
 uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b);
+void matrix_mul_nomem(const uint32_t* matrix_a, const uint32_t* matrix_b, uint32_t* result);
+
+void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+                     const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
+                     uint32_t* c, ssize_t cs);
+void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+                     const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
+                     uint32_t* c, ssize_t cs);
+void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+                     const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
+                     uint32_t* c);
+void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+                   const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
+                   uint32_t* c);
 
 /* compute operations */
 
