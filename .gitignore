@@ -1,0 +1,4 @@
+matrix
+*.swp
+*.out
+*.stats

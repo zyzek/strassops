@@ -350,43 +350,43 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah,
     
 }
 
-void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, 
-                 const uint32_t* b, ssize_t bw, ssize_t bh, 
+void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as
+                 const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs
                  uint32_t* c) {
     ssize_t max_w = (aw > bw ? aw : bw);
     ssize_t max_h = (ah > bh ? ah : bh);
     
     for (ssize_t i = 0; i < max_h - 1; ++i) {
         for (ssize_t j = 0; j < max_w - 1; ++j) {
-           c[max_w*i + j] = a[max_w*i + j] - b[max_w*i + j];
+           c[max_w*i + j] = a[as*i + j] - b[bs*i + j];
         }
     }
 
     if (aw > bw) {
         for (ssize_t i = 1; i < max_h - 1; ++i) {
-            c[max_w*i - 1] = a[max_w*i - 1];
+            c[max_w*i - 1] = a[as*i - 1];
         }
     } else if (aw < bw) {
         for (ssize_t i = 1; i < max_h - 1; ++i) {
-            c[max_w*i - 1] = 0 - b[max_w*i - 1];
+            c[max_w*i - 1] = 0 - b[bs*i - 1];
         }
     } else {
         for (ssize_t i = 1; i < max_h - 1; ++i) {
-            c[max_w*i - 1] = a[max_w*i - 1] - b[max_w*i - 1];
+            c[max_w*i - 1] = a[as*i - 1] - b[bs*i - 1];
         }
     }
 
     if (ah > bh) {
         for (ssize_t j = 0; j < max_w - 1; ++j) {
-            c[max_h - 1 + j] = a[max_h - 1 + j];
+            c[max_w*(max_h - 1) + j] = a[as*(max_h - 1) + j];
         }
     } else if (ah < bh) {
         for (ssize_t j = 0; j < max_w - 1; ++j) {
-            c[max_h - 1 + j] = 0 - b[max_h - 1 + j];
+            c[max_w*(max_h - 1) + j] = 0 - b[bs*(max_h - 1) + j];
         }
     } else {
         for (ssize_t j = 1; j < max_w - 1; ++j) {
-            c[max_h - 1 + j] = a[max_h - 1 + j] - b[max_h - 1 + j];
+            c[max_w*(max_h - 1) + j] = a[as*(max_h - 1) + j] - b[bs*(max_h - 1) + j];
         }
     }
 
@@ -396,24 +396,24 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah,
     
 }
 
-void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, 
-                 const uint32_t* b, ssize_t bw, ssize_t bh, 
+void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as
+                 const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs
                  uint32_t* c) {
 
-        ssize_t min_p = (aw < bh ? aw : bh);
-        ssize_t max_w = (aw < bw ? aw : bw);
+    ssize_t min_p = (aw < bh ? aw : bh);
+    ssize_t max_w = (aw < bw ? aw : bw);
 
-        for (ssize_t y = 0; y < ah; y++) {
-            for (ssize_t k = 0; k < min_p; k++) {
-                for (ssize_t x = 0; x < bw; x++) {
-                    c[y * max_w + x] += a[y * g_width + k] * b[k * g_width + x];
-                }
+    for (ssize_t y = 0; y < ah; y++) {
+        for (ssize_t k = 0; k < min_p; k++) {
+            for (ssize_t x = 0; x < bw; x++) {
+                c[y * max_w + x] += a[y * as + k] * b[k * bs + x];
             }
         }
+    }
 }
 
-void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, 
-              const uint32_t* b, ssize_t bw, ssize_t bh, 
+void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+              const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
               uint32_t* c) {
     
     
@@ -439,15 +439,15 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah,
         ssize_t b11w = bw&1 ? (bw+1)/2 : bw/2;
         ssize_t b11h = bh&1 ? (bh+1)/2 : bh/2;
         ssize_t b22w = bw-b11w;
-        ssize-t b22h = bh-b11h;
+        ssize_t b22h = bh-b11h;
 
         uint32_t* a11 = a;
         uint32_t* a12 = a + a11w;
-        uint32_t* a21 = a + g_width*a11h;
+        uint32_t* a21 = a + as*a11h;
         uint32_t* a22 = a21 + a11w;
         uint32_t* b11 = b;
         uint32_t* b12 = b + b11w;
-        uint32_t* b21 = b + g_width*b11h;
+        uint32_t* b21 = b + bs*b11h;
         uint32_t* b22 = b21 + b11w;
         
         //TODO: consider zeroing fewer of these, when multiplications happen, instead of calloc
