@@ -512,7 +512,6 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
  */
 uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
     
-    
     uint32_t* result = identity_matrix();
     
     if (exponent == 0) return result;
@@ -535,11 +534,15 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 
     for (uint32_t i = 0; i < width; ++i) {
         if (exponent & (1 << i)) {
-            matrix_mul_nomem(result, (mpowers + g_elements*i), temp);
-            
+            //matrix_mul_nomem(result, (mpowers + g_elements*i), temp);
+            strassen(result, g_width, g_height, g_width,
+                     (mpowers + g_elements*i), g_width, g_height, g_width,
+                     temp);
+
             uint32_t* swap = result;
             result = temp;
             temp = swap;
+            uniform_matrix_nomem(0, temp);
         }
     }
     free(mpowers);

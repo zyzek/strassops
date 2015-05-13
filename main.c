@@ -393,7 +393,12 @@ void compute_engine(void) {
 
 void test(void) {
     uint32_t* matrix = sequence_matrix(1, 2);
-    free(matrix_pow(matrix, 100));
+    
+    for (int i = 0; i < 100; ++i) {    
+        free(matrix_mul(matrix, matrix));
+    }
+
+    //free(matrix_pow(matrix, 100));
     free(matrix);
 }
 
@@ -403,18 +408,18 @@ void test(void) {
 int main(int argc, char** argv)
 {
     define_settings(argc, argv);
-    //compute_engine();
+    compute_engine();
 
-    clock_t begin, end;
+    /*clock_t begin, end;
     double time_spent;
 
     begin = clock();
-    test();
+    //test();
     end = clock();
 
     time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-    printf("Time elapsed: %.2f\n", time_spent);
+    printf("Time elapsed: %.5f\n", time_spent);*/
 
     return 0;
 }
