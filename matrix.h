@@ -43,10 +43,10 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                      uint32_t* c, ssize_t cs);
 void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                      const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
-                     uint32_t* c);
+                     uint32_t* c, ssize_t cs);
 void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                    const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
-                   uint32_t* c);
+                   uint32_t* c, ssize_t cs);
 
 /* compute operations */
 

@@ -410,16 +410,16 @@ int main(int argc, char** argv)
     define_settings(argc, argv);
     compute_engine();
 
-    clock_t begin, end;
+    /*clock_t begin, end;
     double time_spent;
 
     begin = clock();
-    //test();
+    test();
     end = clock();
 
     time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-    printf("Time elapsed: %.5f\n", time_spent);
+    printf("Time elapsed: %.5f\n", time_spent);*/
 
     return 0;
 }
