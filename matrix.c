@@ -11,7 +11,7 @@
 
 #include "matrix.h"
 
-#define STRASS_THRESH 100
+#define STRASS_THRESH 2
 
 static uint32_t g_seed = 0;
 
@@ -336,54 +336,45 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
+    ssize_t min_w = (aw < bw ? aw : bw);
+    ssize_t min_h = (ah < bh ? ah : bh);
     ssize_t max_w = (aw > bw ? aw : bw);
     ssize_t max_h = (ah > bh ? ah : bh);
-    
     ssize_t w_off = max_w - 1;
     ssize_t h_off = max_h - 1;
     
-    
-    // Add the parts which definitely exist, the submatrices of dimension (max_h - 1)*(max_w - 1).
-    for (ssize_t i = 0; i < h_off; ++i) {
-        for (ssize_t j = 0; j < w_off; ++j) {
+    // Add the parts which definitely exist, the common largest submatrices.
+    for (ssize_t i = 0; i < min_h; ++i) {
+        for (ssize_t j = 0; j < min_w; ++j) {
            c[cs*i + j] = a[as*i + j] + b[bs*i + j];
         }
     }
     
-    // Add the last columns.
+    // Add the last column.
     if (aw > bw) {
-        for (ssize_t i = 0; i < h_off; ++i) {
+        for (ssize_t i = 0; i < ah; ++i) {
             c[cs*i + w_off] = a[as*i + w_off];
         }
     } else if (aw < bw) {
-        for (ssize_t i = 0; i < h_off; ++i) {
+        for (ssize_t i = 0; i < bh; ++i) {
             c[cs*i + w_off] = b[bs*i + w_off];
         }
-    } else {
-        for (ssize_t i = 0; i < h_off; ++i) {
-            c[cs*i + w_off] = a[as*i + w_off] + b[bs*i + w_off];
-        }
     }
     
-    // Add the last rows.
+    // Add the last row.
     if (ah > bh) {
-        for (ssize_t j = 0; j < w_off; ++j) {
-            c[cs*h_off + j] = a[as*h_off + j];
+        ssize_t cv = cs*h_off;
+        ssize_t av = as*h_off;
+        for (ssize_t j = 0; j < aw; ++j) {
+            c[cv + j] = a[av + j];
         }
-    } else if (bh > ah) {
-        for (ssize_t j = 0; j < w_off; ++j) {
-            c[cs*h_off + j] = b[bs*h_off + j];
-        }
-    } else {
-        for (ssize_t j = 0; j < w_off; ++j) {
-            c[cs*h_off + j] = a[as*h_off + j] + b[bs*h_off + j];
+    } else if (ah < bh) {
+        ssize_t cv = cs*h_off;
+        ssize_t bv = bs*h_off;
+        for (ssize_t j = 0; j < bw; ++j) {
+            c[cv + j] = b[bv + j];
         }
     }
-    
-    // Add the corner elements, if they exist.
-    if (ah == bh && aw == bw) {
-        c[cs*h_off + w_off] = a[as*h_off + w_off] + b[bs*h_off + w_off];
-    } 
 }
 
 /**
@@ -391,58 +382,49 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
  * Input matrix dimensions may differ by at most 1 per side.
  *
  * Details are as strass_add.
- */
+ */ 
 void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
+    ssize_t min_w = (aw < bw ? aw : bw);
+    ssize_t min_h = (ah < bh ? ah : bh);
     ssize_t max_w = (aw > bw ? aw : bw);
     ssize_t max_h = (ah > bh ? ah : bh);
-    
     ssize_t w_off = max_w - 1;
     ssize_t h_off = max_h - 1;
     
-    
-    // Subtract the parts which definitely exist, the submatrices of dimension (max_h - 1)*(max_w - 1).
-    for (ssize_t i = 0; i < h_off; ++i) {
-        for (ssize_t j = 0; j < w_off; ++j) {
+    // Subtract the parts which definitely exist, the common largest submatrices.
+    for (ssize_t i = 0; i < min_h; ++i) {
+        for (ssize_t j = 0; j < min_w; ++j) {
            c[cs*i + j] = a[as*i + j] - b[bs*i + j];
         }
     }
     
-    // Subtract the last columns.
+    // Handle the last column.
     if (aw > bw) {
-        for (ssize_t i = 0; i < h_off; ++i) {
+        for (ssize_t i = 0; i < ah; ++i) {
             c[cs*i + w_off] = a[as*i + w_off];
         }
     } else if (aw < bw) {
-        for (ssize_t i = 0; i < h_off; ++i) {
+        for (ssize_t i = 0; i < bh; ++i) {
             c[cs*i + w_off] = 0 - b[bs*i + w_off];
         }
-    } else {
-        for (ssize_t i = 0; i < h_off; ++i) {
-            c[cs*i + w_off] = a[as*i + w_off] - b[bs*i + w_off];
-        }
     }
     
-    // Subtract the last rows.
+    // Handle the last row.
     if (ah > bh) {
-        for (ssize_t j = 0; j < w_off; ++j) {
-            c[cs*h_off + j] = a[as*h_off + j];
+        ssize_t cv = cs*h_off;
+        ssize_t av = as*h_off;
+        for (ssize_t j = 0; j < aw; ++j) {
+            c[cv + j] = a[av + j];
         }
-    } else if (bh > ah) {
-        for (ssize_t j = 0; j < w_off; ++j) {
-            c[cs*h_off + j] = 0 - b[bs*h_off + j];
-        }
-    } else {
-        for (ssize_t j = 0; j < w_off; ++j) {
-            c[cs*h_off + j] = a[as*h_off + j] - b[bs*h_off + j];
+    } else if (ah < bh) {
+        ssize_t cv = cs*h_off;
+        ssize_t bv = bs*h_off;
+        for (ssize_t j = 0; j < bw; ++j) {
+            c[cv + j] = 0 - b[bv + j];
         }
     }
-    
-    // Subtract the corner elements, if they exist.
-    if (ah == bh && aw == bw) {
-        c[cs*h_off + w_off] = a[as*h_off + w_off] - b[bs*h_off + w_off];
-    } 
 }
 
 /**
@@ -481,16 +463,32 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     
     if (m <= STRASS_THRESH) {
         
-        //strass_display(a, aw, ah, as);
-        //strass_display(b, bw, bh, bs);
+        strass_display(a, aw, ah, as);
+        strass_display(b, bw, bh, bs);
 
         strass_mul(a, aw, ah, as, b, bw, bh, bs, c, cs);
         return;
     } else {
          
-        //printf("aw: %zd ah: %zd  bw: %zd bh: %zd\n", aw, ah, bw, bh);
-                // Pointers to each quadrant of input/output matrices
+        printf("aw: %zd ah: %zd  bw: %zd bh: %zd\n", aw, ah, bw, bh);
+        // Pointers to each quadrant of input/output matrices
         
+        if (aw > bw) {
+            
+        } else if (aw < bw) {
+
+        } else {
+
+        }
+
+        if (ah > bh) {
+
+        } else if (ah > bh) {
+
+        } else {
+
+        }
+
         ssize_t a11w = aw&1 ? (aw+1)/2 : aw/2;
         ssize_t a11h = ah&1 ? (ah+1)/2 : ah/2;
         ssize_t a22w = aw-a11w;
@@ -521,15 +519,15 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         uint32_t* c21 = c + cs*c11h;
         uint32_t* c22 = c21 + c11w;
 
-        //strass_display(a11, a11w, a11h, as);
-        //strass_display(a12, a22w, a11h, as);
-        //strass_display(a21, a11w, a22h, as);
-        //strass_display(a22, a22w, a22h, as);
+        strass_display(a11, a11w, a11h, as);
+        strass_display(a12, a22w, a11h, as);
+        strass_display(a21, a11w, a22h, as);
+        strass_display(a22, a22w, a22h, as);
 
-        //strass_display(b11, b11w, b11h, bs);
-        //strass_display(b12, b22w, b11h, bs);
-        //strass_display(b21, b11w, b22h, bs);
-        //strass_display(b22, b22w, b22h, bs);
+        strass_display(b11, b11w, b11h, bs);
+        strass_display(b12, b22w, b11h, bs);
+        strass_display(b21, b11w, b22h, bs);
+        strass_display(b22, b22w, b22h, bs);
 
         //TODO: consider zeroing fewer of these, when multiplications happen, instead of calloc
         m = (c11w > c11h ? c11w : c11h);
@@ -549,20 +547,20 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         
 
 
-        //printf("\nEsses\n");
-        //strass_display(S+n, m, m, m);
-        //strass_display(S+2*n, m, m, m);
-        //strass_display(S+3*n, m, m, m);
-        //strass_display(S+4*n, m, m, m);
-        //strass_display(S+5*n, m, m, m);
-        //strass_display(S+6*n, m, m, m);
-        //strass_display(S+7*n, m, m, m);
-        //strass_display(S+8*n, m, m, m);
-        //strass_display(S+9*n, m, m, m);
-        //strass_display(S+10*n, m, m, m);
+        printf("\nEsses\n");
+        strass_display(S+n, m, m, m);
+        strass_display(S+2*n, m, m, m);
+        strass_display(S+3*n, m, m, m);
+        strass_display(S+4*n, m, m, m);
+        strass_display(S+5*n, m, m, m);
+        strass_display(S+6*n, m, m, m);
+        strass_display(S+7*n, m, m, m);
+        strass_display(S+8*n, m, m, m);
+        strass_display(S+9*n, m, m, m);
+        strass_display(S+10*n, m, m, m);
 
 
-        //printf("\nPees\n");
+        printf("\nPees\n");
 
 
         //P1 = A11*S1
@@ -586,31 +584,39 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         //P7 = S9*S10
         strassen(S + 9*n, m, m, m, S + 10*n, m, m, m, S + 6*n, m);
         
-        //strass_display(S, m, m, m);
-        //strass_display(S+n, m, m, m);
-        //strass_display(S+2*n, m, m, m);
-        //strass_display(S+3*n, m, m, m);
-        //strass_display(S+4*n, m, m, m);
-        //strass_display(S+5*n, m, m, m);
-        //strass_display(S+6*n, m, m, m);
+        strass_display(S, m, m, m);
+        strass_display(S+n, m, m, m);
+        strass_display(S+2*n, m, m, m);
+        strass_display(S+3*n, m, m, m);
+        strass_display(S+4*n, m, m, m);
+        strass_display(S+5*n, m, m, m);
+        strass_display(S+6*n, m, m, m);
         
-        //printf("successful for submults.\n");
+        printf("successful for submults.\n");
         // C11 = P5 + P4 - P2 + P6
+        //memset(S + 9*n, 0, 2*n*sizeof(uint32_t));
         strass_add(S + 4*n, m, m, m, S + 3*n, m, m, m, S + 10*n, m);
         strass_sub(S + 5*n, m, m, m, S + n, m, m, m, S + 9*n, m);
         strass_add(S + 10*n, c11w, c11h, m, S + 9*n, c11w, c11h, m, c11, cs);
-        //printf("C11\n");
+        printf("C11\n");
         // C12 = P1 + P2
         strass_add(S, c22w, c11h, m, S + n, c22w, c11h, m, c12, cs);
-        //printf("C12\n");
+        printf("C12\n");
         // C21 = P3 + P4
         strass_add(S + 2*n, c11w, c22h, m, S + 3*n, c11w, c22h, m, c21, cs);
-        //printf("C21\n");
+        printf("C21\n");
         // C22 = P1 + P5 - P3 - P7
+        //memset(S + n, 0, n*sizeof(uint32_t));
+        //memset(S + 3*n, 0, n*sizeof(uint32_t));
         strass_add(S, m, m, m, S + 4*n, m, m, m, S + n, m);
         strass_add(S + 2*n, m, m, m, S + 6*n, m, m, m, S + 3*n, m);
         strass_sub(S + n, c22w, c22h, m, S + 3*n, c22w, c22h, m, c22, cs);
-        //printf("C22\n");
+        printf("C22\n");
+        
+        strass_display(c11, c11w, c11h, cs);
+        strass_display(c12, c22w, c11h, cs);
+        strass_display(c21, c11w, c22h, cs);
+        strass_display(c22, c22w, c22h, cs);
 
         free(S);
     }
