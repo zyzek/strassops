@@ -10,7 +10,7 @@
 
 #include "matrix.h"
 
-#define STRASS_THRESH 100
+#define STRASS_THRESH 5
 
 static uint32_t g_seed = 0;
 
@@ -312,13 +312,18 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     ssize_t max_h = (ah > bh ? ah : bh);
     
     if (cs == -1) cs = max_w;
-
+    
+    // Add the shared square which definitely exists.
     for (ssize_t i = 0; i < max_h - 1; ++i) {
         for (ssize_t j = 0; j < max_w - 1; ++j) {
            c[cs*i + j] = a[as*i + j] + b[bs*i + j];
         }
     }
-
+    
+    // Add the last column
+    // If a is wider than b, just use a
+    // if b is wider than a, just use b
+    // if a = b, use their sum.
     if (aw > bw) {
         for (ssize_t i = 1; i < max_h - 1; ++i) {
             c[cs*i - 1] = a[as*i - 1];
@@ -332,7 +337,11 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
             c[cs*i - 1] = a[as*i - 1] + b[bs*i - 1];
         }
     }
-
+    
+    // Add the last row
+    // If a is taller than b, just use a
+    // if b is taller than a, just use b
+    // if a = b, use their sum.
     if (ah > bh) {
         for (ssize_t j = 0; j < max_w - 1; ++j) {
             c[cs*(max_h - 1) + j] = a[as*(max_h - 1) + j];
@@ -351,6 +360,16 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         c[cs*max_h - 1] = a[max_w*max_h - 1] + b[max_w*max_h - 1];
     } 
     
+    /*
+     *  . . . . ,
+     *  . . . . , 
+     *  . . . . , 
+     *  . . . . ,
+     *  , , , , _
+     *
+     *
+     */
+
 }
 
 void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
