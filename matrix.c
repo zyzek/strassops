@@ -11,7 +11,8 @@
 
 #include "matrix.h"
 
-#define STRASS_THRESH 2
+#define STRASS_THRESH 100
+#define STRASS_MIN 5
 
 static uint32_t g_seed = 0;
 
@@ -322,7 +323,7 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 
 /**
  * Adds a and b, placing the result in c.
- * Input matrix dimensions may differ by at most 1 per side.
+ * Input matrix dimensions may differ by at most 2 per side.
  * In the case where one matrix is smaller than the other in one dimension,
  * that matrix is implicitly padded with zeroes on that edge.
  *
@@ -336,7 +337,19 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
-    ssize_t min_w = (aw < bw ? aw : bw);
+    
+    for (ssize_t y = 0; y < ah; ++y) {
+        for (ssize_t x = 0; x < aw; ++x) {
+            c[cs*y + x] = a[as*y + x];
+        }
+    }
+
+    for (ssize_t y = 0; y < bh; ++y) {
+        for (ssize_t x = 0; x < bw; ++x) {
+            c[cs*y + x] += b[bs*y + x];
+        }
+    }
+    /*ssize_t min_w = (aw < bw ? aw : bw);
     ssize_t min_h = (ah < bh ? ah : bh);
     ssize_t max_w = (aw > bw ? aw : bw);
     ssize_t max_h = (ah > bh ? ah : bh);
@@ -350,14 +363,28 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         }
     }
     
-    // Add the last column.
+    // Add the last columns.
     if (aw > bw) {
         for (ssize_t i = 0; i < ah; ++i) {
             c[cs*i + w_off] = a[as*i + w_off];
         }
+        
+        if ((max_w - min_w) > 1) {
+            ssize_t w_off2 = w_off - 1;
+            for (ssize_t i = 0; i < ah; ++i) {
+                c[cs*i + w_off2] = a[as*i + w_off2];
+            }   
+        }
     } else if (aw < bw) {
         for (ssize_t i = 0; i < bh; ++i) {
             c[cs*i + w_off] = b[bs*i + w_off];
+        }
+        
+        if ((max_w - min_w) > 1) {
+            ssize_t w_off2 = w_off - 1;
+            for (ssize_t i = 0; i < bh; ++i) {
+                c[cs*i + w_off2] = b[bs*i + w_off2];
+            }   
         }
     }
     
@@ -368,13 +395,29 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         for (ssize_t j = 0; j < aw; ++j) {
             c[cv + j] = a[av + j];
         }
+        
+        if ((max_h - min_h) > 1) {
+            ssize_t cv2 = cv - cs;
+            ssize_t av2 = av - as;
+            for (ssize_t j = 0; j < aw; ++j) {
+                c[cv2 + j] = a[av2 + j];
+            }
+        }
     } else if (ah < bh) {
         ssize_t cv = cs*h_off;
         ssize_t bv = bs*h_off;
         for (ssize_t j = 0; j < bw; ++j) {
             c[cv + j] = b[bv + j];
         }
-    }
+
+        if ((max_h - min_h) > 1) {
+            ssize_t cv2 = cv - cs;
+            ssize_t bv2 = bv - bs;
+            for (ssize_t j = 0; j < bw; ++j) {
+                c[cv2 + j] = b[bv2 + j];
+            }
+        }
+    }*/
 }
 
 /**
@@ -386,7 +429,21 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
-    ssize_t min_w = (aw < bw ? aw : bw);
+    
+    for (ssize_t y = 0; y < ah; ++y) {
+        for (ssize_t x = 0; x < aw; ++x) {
+            c[cs*y + x] = a[as*y + x];
+        }
+    }
+
+    for (ssize_t y = 0; y < bh; ++y) {
+        for (ssize_t x = 0; x < bw; ++x) {
+            c[cs*y + x] -= b[bs*y + x];
+        }
+    }
+    
+    
+    /*ssize_t min_w = (aw < bw ? aw : bw);
     ssize_t min_h = (ah < bh ? ah : bh);
     ssize_t max_w = (aw > bw ? aw : bw);
     ssize_t max_h = (ah > bh ? ah : bh);
@@ -405,9 +462,23 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         for (ssize_t i = 0; i < ah; ++i) {
             c[cs*i + w_off] = a[as*i + w_off];
         }
+        
+        if ((max_w - min_w) > 1) {
+            ssize_t w_off2 = w_off - 1;
+            for (ssize_t i = 0; i < ah; ++i) {
+                c[cs*i + w_off2] = a[as*i + w_off2];
+            }   
+        }
     } else if (aw < bw) {
         for (ssize_t i = 0; i < bh; ++i) {
             c[cs*i + w_off] = 0 - b[bs*i + w_off];
+        }
+
+        if ((max_w - min_w) > 1) {
+            ssize_t w_off2 = w_off - 1;
+            for (ssize_t i = 0; i < bh; ++i) {
+                c[cs*i + w_off2] = 0 - b[bs*i + w_off];
+            }   
         }
     }
     
@@ -418,13 +489,29 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         for (ssize_t j = 0; j < aw; ++j) {
             c[cv + j] = a[av + j];
         }
+
+        if ((max_h - min_h) > 1) {
+            ssize_t cv2 = cv - cs;
+            ssize_t av2 = av - as;
+            for (ssize_t j = 0; j < aw; ++j) {
+                c[cv2 + j] = a[av2 + j];
+            }
+        }
     } else if (ah < bh) {
         ssize_t cv = cs*h_off;
         ssize_t bv = bs*h_off;
         for (ssize_t j = 0; j < bw; ++j) {
             c[cv + j] = 0 - b[bv + j];
         }
-    }
+
+        if ((max_h - min_h) > 1) {
+            ssize_t cv2 = cv - cs;
+            ssize_t bv2 = bv - bs;
+            for (ssize_t j = 0; j < bw; ++j) {
+                c[cv2 + j] = 0 - b[bv2 + j];
+            }
+        }
+    }*/
 }
 
 /**
@@ -454,6 +541,10 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
               uint32_t* c, ssize_t cs) {
     //assert(abs(aw - bw) <= 1);
     //assert(abs(ah - bh) <= 1);
+    
+    if (aw == 0 || ah == 0 || bw == 0 || bh == 0) {
+        return;
+    }
 
     // Get largest dimension
     ssize_t max_w = (aw > bw ? aw : bw);
@@ -461,33 +552,21 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     ssize_t m = (max_w > max_h ? max_w : max_h);
     //printf("m : %zd", m);
     
-    if (m <= STRASS_THRESH) {
+    if (m <= STRASS_THRESH || aw <= STRASS_MIN || bw <= STRASS_MIN) {
         
-        strass_display(a, aw, ah, as);
-        strass_display(b, bw, bh, bs);
+        //strass_display(a, aw, ah, as);
+        //strass_display(b, bw, bh, bs);
 
         strass_mul(a, aw, ah, as, b, bw, bh, bs, c, cs);
         return;
     } else {
          
-        printf("aw: %zd ah: %zd  bw: %zd bh: %zd\n", aw, ah, bw, bh);
+        //printf("aw: %zd ah: %zd  bw: %zd bh: %zd\n", aw, ah, bw, bh);
         // Pointers to each quadrant of input/output matrices
-        
-        if (aw > bw) {
-            
-        } else if (aw < bw) {
-
-        } else {
-
-        }
-
-        if (ah > bh) {
-
-        } else if (ah > bh) {
-
-        } else {
-
-        }
+        /*if (aw == 3 && bw == 1) {
+            strass_display(a, aw, ah, as);
+            strass_display(b, bw, bh, bs);
+        }*/
 
         ssize_t a11w = aw&1 ? (aw+1)/2 : aw/2;
         ssize_t a11h = ah&1 ? (ah+1)/2 : ah/2;
@@ -504,11 +583,32 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         ssize_t c22w = max_w-c11w;
         ssize_t c22h = max_h-c11h;
 
+
+        if (aw > bw) {
+            b11w = a11w;
+            b22w = bw-b11w;    
+        } else if (aw < bw) {
+            a11w = b11w;
+            a22w = aw-a11w;
+        } else {
+
+        }
+
+        if (ah > bh) {
+            b11h = a11h;
+            b22h = bh-b11h;
+        } else if (ah < bh) {
+            a11h = b11h;
+            a22h = ah-a11h;
+        } else {
+
+        }
+
         const uint32_t* a11 = a;
         const uint32_t* a12 = a + a11w;
         const uint32_t* a21 = a + as*a11h;
         const uint32_t* a22 = a21 + a11w;
-        
+
         const uint32_t* b11 = b;
         const uint32_t* b12 = b + b11w;
         const uint32_t* b21 = b + bs*b11h;
@@ -519,17 +619,16 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         uint32_t* c21 = c + cs*c11h;
         uint32_t* c22 = c21 + c11w;
 
-        strass_display(a11, a11w, a11h, as);
-        strass_display(a12, a22w, a11h, as);
-        strass_display(a21, a11w, a22h, as);
-        strass_display(a22, a22w, a22h, as);
+        //strass_display(a11, a11w, a11h, as);
+        //strass_display(a12, a22w, a11h, as);
+        //strass_display(a21, a11w, a22h, as);
+        //strass_display(a22, a22w, a22h, as);
 
-        strass_display(b11, b11w, b11h, bs);
-        strass_display(b12, b22w, b11h, bs);
-        strass_display(b21, b11w, b22h, bs);
-        strass_display(b22, b22w, b22h, bs);
+        //strass_display(b11, b11w, b11h, bs);
+        //strass_display(b12, b22w, b11h, bs);
+        //strass_display(b21, b11w, b22h, bs);
+        //strass_display(b22, b22w, b22h, bs);
 
-        //TODO: consider zeroing fewer of these, when multiplications happen, instead of calloc
         m = (c11w > c11h ? c11w : c11h);
         ssize_t n = m*m;
         uint32_t* S = (uint32_t*)calloc(11, sizeof(uint32_t) * n);
@@ -547,20 +646,20 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         
 
 
-        printf("\nEsses\n");
-        strass_display(S+n, m, m, m);
-        strass_display(S+2*n, m, m, m);
-        strass_display(S+3*n, m, m, m);
-        strass_display(S+4*n, m, m, m);
-        strass_display(S+5*n, m, m, m);
-        strass_display(S+6*n, m, m, m);
-        strass_display(S+7*n, m, m, m);
-        strass_display(S+8*n, m, m, m);
-        strass_display(S+9*n, m, m, m);
-        strass_display(S+10*n, m, m, m);
+        //printf("\nEsses\n");
+        //strass_display(S+n, m, m, m);
+        //strass_display(S+2*n, m, m, m);
+        //strass_display(S+3*n, m, m, m);
+        //strass_display(S+4*n, m, m, m);
+        //strass_display(S+5*n, m, m, m);
+        //strass_display(S+6*n, m, m, m);
+        //strass_display(S+7*n, m, m, m);
+        //strass_display(S+8*n, m, m, m);
+        //strass_display(S+9*n, m, m, m);
+        //strass_display(S+10*n, m, m, m);
 
 
-        printf("\nPees\n");
+        //printf("\nPees\n");
 
 
         //P1 = A11*S1
@@ -584,39 +683,40 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         //P7 = S9*S10
         strassen(S + 9*n, m, m, m, S + 10*n, m, m, m, S + 6*n, m);
         
-        strass_display(S, m, m, m);
-        strass_display(S+n, m, m, m);
-        strass_display(S+2*n, m, m, m);
-        strass_display(S+3*n, m, m, m);
-        strass_display(S+4*n, m, m, m);
-        strass_display(S+5*n, m, m, m);
-        strass_display(S+6*n, m, m, m);
+        //strass_display(S, m, m, m);
+        //strass_display(S+n, m, m, m);
+        //strass_display(S+2*n, m, m, m);
+        //strass_display(S+3*n, m, m, m);
+        //strass_display(S+4*n, m, m, m);
+        //strass_display(S+5*n, m, m, m);
+        //strass_display(S+6*n, m, m, m);
         
-        printf("successful for submults.\n");
+        //printf("successful for submults.\n");
         // C11 = P5 + P4 - P2 + P6
         //memset(S + 9*n, 0, 2*n*sizeof(uint32_t));
         strass_add(S + 4*n, m, m, m, S + 3*n, m, m, m, S + 10*n, m);
         strass_sub(S + 5*n, m, m, m, S + n, m, m, m, S + 9*n, m);
         strass_add(S + 10*n, c11w, c11h, m, S + 9*n, c11w, c11h, m, c11, cs);
-        printf("C11\n");
+        //printf("C11\n");
         // C12 = P1 + P2
         strass_add(S, c22w, c11h, m, S + n, c22w, c11h, m, c12, cs);
-        printf("C12\n");
+        //printf("C12\n");
         // C21 = P3 + P4
         strass_add(S + 2*n, c11w, c22h, m, S + 3*n, c11w, c22h, m, c21, cs);
-        printf("C21\n");
+        //printf("C21\n");
         // C22 = P1 + P5 - P3 - P7
         //memset(S + n, 0, n*sizeof(uint32_t));
         //memset(S + 3*n, 0, n*sizeof(uint32_t));
         strass_add(S, m, m, m, S + 4*n, m, m, m, S + n, m);
         strass_add(S + 2*n, m, m, m, S + 6*n, m, m, m, S + 3*n, m);
         strass_sub(S + n, c22w, c22h, m, S + 3*n, c22w, c22h, m, c22, cs);
-        printf("C22\n");
+        //printf("C22\n");
         
-        strass_display(c11, c11w, c11h, cs);
-        strass_display(c12, c22w, c11h, cs);
-        strass_display(c21, c11w, c22h, cs);
-        strass_display(c22, c22w, c22h, cs);
+        //printf("\nCees\n"); 
+        //strass_display(c11, c11w, c11h, cs);
+        //strass_display(c12, c22w, c11h, cs);
+        //strass_display(c21, c11w, c22h, cs);
+        //strass_display(c22, c22w, c22h, cs);
 
         free(S);
     }
