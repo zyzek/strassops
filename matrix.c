@@ -10,7 +10,9 @@
 
 #include "matrix.h"
 
-#define STRASS_THRESH 100
+#define STRASS_THRESH 2
+
+typedef uint32_t v4si __attribute__ ((vector_size(128)));
 
 static uint32_t g_seed = 0;
 
@@ -177,7 +179,9 @@ void display_element(const uint32_t* matrix, ssize_t row, ssize_t column) {
  * Returns new matrix with all elements set to zero
  */
 uint32_t* new_matrix(void) {
-
+    //uint32_t* matrix = (uint32_t*)aligned_alloc(16, g_elements*sizeof(uint32_t));
+    //memset(matrix, 0, g_elements*sizeof(uint32_t));
+    //return matrix;
     return calloc(g_elements, sizeof(uint32_t));
 }
 
@@ -522,13 +526,13 @@ void old_strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 static void *strass_add_worker(void *arg) {
     strass_arg *argument = (strass_arg *)arg;
 
-    for (ssize_t y = argument->id; y < argument->ah; ++y) {
+    for (ssize_t y = argument->id; y < argument->ah; y += g_nthreads) {
         for (ssize_t x = 0; x < argument->aw; ++x) {
             argument->c[argument->cs*y + x] = argument->a[argument->as*y + x];
         }
     }
 
-    for (ssize_t y = argument->id; y < argument->bh; ++y) {
+    for (ssize_t y = argument->id; y < argument->bh; y += g_nthreads) {
         for (ssize_t x = 0; x < argument->bw; ++x) {
             argument->c[argument->cs*y + x] += argument->b[argument->bs*y + x];
         }
@@ -598,13 +602,13 @@ void old_strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 static void *strass_sub_worker(void *arg) {
     strass_arg *argument = (strass_arg *)arg;
 
-    for (ssize_t y = argument->id; y < argument->ah; ++y) {
+    for (ssize_t y = argument->id; y < argument->ah; y += g_nthreads) {
         for (ssize_t x = 0; x < argument->aw; ++x) {
             argument->c[argument->cs*y + x] = argument->a[argument->as*y + x];
         }
     }
 
-    for (ssize_t y = argument->id; y < argument->bh; ++y) {
+    for (ssize_t y = argument->id; y < argument->bh; y += g_nthreads) {
         for (ssize_t x = 0; x < argument->bw; ++x) {
             argument->c[argument->cs*y + x] -= argument->b[argument->bs*y + x];
         }
@@ -649,12 +653,65 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     g_nthreads = temp;
 }
 
+static void *strass_mul_worker(void *arg) {
+    strass_arg *argument = (strass_arg *)arg;
+    
+    ssize_t min_p = (argument->aw < argument->bh ? argument->aw : argument->bh);
+
+    for (ssize_t y = argument->id; y < argument->ah; y += g_nthreads) {
+        for (ssize_t k = 0; k < min_p; k++) {
+            for (ssize_t x = 0; x < argument->bw; x++) {
+                argument->c[y*argument->cs + x] += argument->a[y*argument->as + k] * argument->b[k*argument->bs + x];
+            }
+        }
+    }
+   
+    return NULL;
+}
+
+void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+                 const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
+                 uint32_t* c, ssize_t cs) {
+
+    size_t temp = g_nthreads;
+    g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
+    strass_arg args[g_nthreads];
+
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        args[i] = (strass_arg) {
+            .id = i,
+            .a = a,
+            .aw = aw,
+            .ah = ah,
+            .as = as,
+            .b = b,
+            .bw = bw,
+            .bh = bh,
+            .bs = bs,
+            .c = c,
+            .cs = cs
+        };
+    }
+    
+    pthread_t thread_ids[g_nthreads];
+
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        pthread_create(thread_ids + i, NULL, strass_mul_worker, args + i);
+    }
+    
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        pthread_join(thread_ids[i], NULL);
+    }
+
+    g_nthreads = temp;
+}
+
 /**
  * Base case multiplication, 
  * reverts to this for small-enough matrices.
  * Details are as strassen().
  */
-void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+void old_strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
 
