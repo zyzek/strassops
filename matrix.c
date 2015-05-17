@@ -51,6 +51,22 @@ struct matrix_arg {
 };
 typedef struct matrix_arg matrix_arg;
 
+struct strass_arg {
+    size_t id;
+    const uint32_t* a;
+    size_t aw;
+    size_t ah;
+    size_t as;
+    const uint32_t* b;
+    size_t bw;
+    size_t bh;
+    size_t bs;
+    uint32_t* c;
+    size_t cs;
+};
+typedef struct strass_arg strass_arg;
+
+
 ////////////////////////////////
 ///     UTILITY FUNCTIONS    ///
 ////////////////////////////////
@@ -453,7 +469,6 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
     g_nthreads = temp;
     
     return result;
-
 }
 
 /**
@@ -486,7 +501,7 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
  * Adds a and b, placing the result in c.
  * Details are as strassen().
  */
-void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+void old_strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
     
@@ -503,11 +518,66 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     }
 }
 
+// TODO: see if removing these dereferences is faster.
+static void *strass_add_worker(void *arg) {
+    strass_arg *argument = (strass_arg *)arg;
+
+    for (ssize_t y = argument->id; y < argument->ah; ++y) {
+        for (ssize_t x = 0; x < argument->aw; ++x) {
+            argument->c[argument->cs*y + x] = argument->a[argument->as*y + x];
+        }
+    }
+
+    for (ssize_t y = argument->id; y < argument->bh; ++y) {
+        for (ssize_t x = 0; x < argument->bw; ++x) {
+            argument->c[argument->cs*y + x] += argument->b[argument->bs*y + x];
+        }
+    }
+    
+    return NULL;
+}
+
+void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+                 const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
+                 uint32_t* c, ssize_t cs) {
+    size_t temp = g_nthreads;
+    g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
+    strass_arg args[g_nthreads];
+
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        args[i] = (strass_arg) {
+            .id = i,
+            .a = a,
+            .aw = aw,
+            .ah = ah,
+            .as = as,
+            .b = b,
+            .bw = bw,
+            .bh = bh,
+            .bs = bs,
+            .c = c,
+            .cs = cs
+        };
+    }
+    
+    pthread_t thread_ids[g_nthreads];
+
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        pthread_create(thread_ids + i, NULL, strass_add_worker, args + i);
+    }
+    
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        pthread_join(thread_ids[i], NULL);
+    }
+
+    g_nthreads = temp;
+}
+
 /**
  * Subtracts b from a, placing the result in c.
  * Details are as strassen().
  */ 
-void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+void old_strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
     
@@ -522,6 +592,61 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
             c[cs*y + x] -= b[bs*y + x];
         }
     }
+}
+
+// TODO: see if removing these dereferences is faster.
+static void *strass_sub_worker(void *arg) {
+    strass_arg *argument = (strass_arg *)arg;
+
+    for (ssize_t y = argument->id; y < argument->ah; ++y) {
+        for (ssize_t x = 0; x < argument->aw; ++x) {
+            argument->c[argument->cs*y + x] = argument->a[argument->as*y + x];
+        }
+    }
+
+    for (ssize_t y = argument->id; y < argument->bh; ++y) {
+        for (ssize_t x = 0; x < argument->bw; ++x) {
+            argument->c[argument->cs*y + x] -= argument->b[argument->bs*y + x];
+        }
+    }
+    
+    return NULL;
+}
+
+void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
+                 const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
+                 uint32_t* c, ssize_t cs) {
+    size_t temp = g_nthreads;
+    g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
+    strass_arg args[g_nthreads];
+
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        args[i] = (strass_arg) {
+            .id = i,
+            .a = a,
+            .aw = aw,
+            .ah = ah,
+            .as = as,
+            .b = b,
+            .bw = bw,
+            .bh = bh,
+            .bs = bs,
+            .c = c,
+            .cs = cs
+        };
+    }
+    
+    pthread_t thread_ids[g_nthreads];
+
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        pthread_create(thread_ids + i, NULL, strass_sub_worker, args + i);
+    }
+    
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        pthread_join(thread_ids[i], NULL);
+    }
+
+    g_nthreads = temp;
 }
 
 /**
