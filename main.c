@@ -412,24 +412,33 @@ void test_freq(void) {
     free(matrix);
 }
 
+void test_sum(void) {
+    uint32_t* matrix = uniform_matrix(1);
+
+    for (int i = 0; i < 1000; ++i) {
+        get_sum(matrix);
+    }
+
+    free(matrix);
+}
 /**
  * Main function
  */
 int main(int argc, char** argv)
 {
     define_settings(argc, argv);
-    //compute_engine();
+    compute_engine();
 
-    clock_t begin, end;
+    /*clock_t begin, end;
     double time_spent;
 
     begin = clock();
-    test_freq();
+    test_sum();
     end = clock();
 
     time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-    printf("Time elapsed: %.5f\n", time_spent);
+    printf("Time elapsed: %.5f\n", time_spent);*/
 
     return 0;
 }
