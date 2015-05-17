@@ -7,7 +7,6 @@
 #include <inttypes.h>
 
 #include <string.h>
-//#include <assert.h>
 
 #include "matrix.h"
 
@@ -20,6 +19,14 @@ static ssize_t g_height = 0;
 static ssize_t g_elements = 0;
 
 static ssize_t g_nthreads = 1;
+
+struct freq_arg {
+    const uint32_t* matrix;
+    size_t id;
+    uint32_t value;
+    uint32_t result;
+};
+typedef struct freq_arg freq_arg;
 
 ////////////////////////////////
 ///     UTILITY FUNCTIONS    ///
@@ -46,7 +53,6 @@ void set_seed(uint32_t seed) {
  * Sets the number of threads available
  */
 void set_nthreads(ssize_t count) {
-
     g_nthreads = count;
 }
 
@@ -611,12 +617,65 @@ uint32_t get_maximum(const uint32_t* matrix) {
 /**
  * Returns the frequency of the value in the matrix
  */
-uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
+uint32_t old_get_frequency(const uint32_t* matrix, uint32_t value) {
     
     uint32_t freq = 0;
 
     for (uint32_t i = 0; i < g_elements; ++i) {
         if (matrix[i] == value) ++freq;
+    }
+
+    return freq;
+}
+
+static void *freq_worker(void *arg) {
+    freq_arg *argument = (freq_arg *)arg;
+    
+    uint32_t val = argument->value;
+    uint32_t freq = 0;
+
+    for (size_t y = argument->id; y < g_height; y += g_nthreads + 1) {
+        for (size_t x = 0; x < g_width; ++x) {
+            if (argument->matrix[y*g_height + x] == val) ++freq;
+        }
+    }
+    
+    argument->result += freq;
+
+    return NULL;
+}
+
+/**
+ * Returns the frequency of the value in the matrix
+ */
+uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
+
+    uint32_t freq = 0;
+
+    size_t nthreads = g_nthreads < g_height ? g_nthreads : g_height;
+    freq_arg args[nthreads];
+
+    for (size_t i = 0; i < nthreads; ++i) {
+        args[i] = (freq_arg) {
+            .matrix = matrix,
+            .id = i,
+            .value = value,
+            .result = 0
+        };
+    }
+    
+    pthread_t thread_ids[nthreads];
+
+    for (size_t i = 0; i < nthreads; ++i) {
+        pthread_create(thread_ids + i, NULL, freq_worker, args + i);
+    }
+    
+    for (size_t i = 0; i < nthreads; ++i) {
+        pthread_join(thread_ids[i], NULL);
+    }
+
+    for (size_t i = 0; i < nthreads; ++i) {
+        freq += args[i].result;
     }
 
     return freq;

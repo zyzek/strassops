@@ -391,7 +391,7 @@ void compute_engine(void) {
 }
 
 
-void test(void) {
+void test_mul(void) {
     uint32_t* matrix = sequence_matrix(1, 2);
     
     for (int i = 0; i < 100; ++i) {    
@@ -402,19 +402,29 @@ void test(void) {
     free(matrix);
 }
 
+void test_freq(void) {
+    uint32_t* matrix = uniform_matrix(1);
+
+    for (int i = 0; i < 1000; ++i) {
+        get_frequency(matrix, 1);
+    }
+
+    free(matrix);
+}
+
 /**
  * Main function
  */
 int main(int argc, char** argv)
 {
     define_settings(argc, argv);
-    compute_engine();
+    //compute_engine();
 
     clock_t begin, end;
     double time_spent;
 
     begin = clock();
-    test();
+    test_freq();
     end = clock();
 
     time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
