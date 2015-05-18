@@ -1,3 +1,33 @@
+/* Parallelisation strategy:
+ *
+ * 1. Spool up N threads, 
+ * 2. Have global current-op
+ * 3. Have global struct for threads, which contains:
+ *    i. required operands,
+ *    ii. pointer to current function to execute*/
+/*
+ * worker(threadstruct) {
+ *   Spinlock until operation
+ *   switch on current op,
+ *   get relevant operands,
+ *   call relevant function, with fetched operands
+ * }
+ *
+ * threadstruct :
+ *  id,
+ *  pointer to global struct,
+ *
+ * global struct :
+ *  void pointer, structure depends on current operation 
+ */
+
+
+
+/*
+ * Check misses, cachegrind
+ */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -12,7 +42,7 @@
 
 #define STRASS_THRESH 100
 
-typedef uint32_t v4si __attribute__ ((vector_size(128)));
+//typedef uint32_t v4si __attribute__ ((vector_size(128)));
 
 static uint32_t g_seed = 0;
 
@@ -21,6 +51,9 @@ static ssize_t g_height = 0;
 static ssize_t g_elements = 0;
 
 static ssize_t g_nthreads = 1;
+
+//enum operation {NONE, SCADD, SCMUL, MADD, MMUL, STADD, STSUB, STMUL, GSUM, GTRACE, GMIN, GMAX, GFREQ};
+//static enum operation curr_op = NONE;
 
 struct freq_arg {
     const uint32_t* matrix;
