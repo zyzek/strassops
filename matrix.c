@@ -10,7 +10,7 @@
 
 #include "matrix.h"
 
-#define STRASS_THRESH 2
+#define STRASS_THRESH 100
 
 typedef uint32_t v4si __attribute__ ((vector_size(128)));
 
@@ -317,12 +317,11 @@ uint32_t* old_scalar_add(const uint32_t* matrix, uint32_t scalar) {
 }
 
 static void *scal_add_worker(void *arg) {
-    scalar_arg *argument = (scalar_arg *)arg;
-    ssize_t scalar = argument->scalar;
+    scalar_arg argument = *((scalar_arg *)arg);
 
-    for (size_t y = argument->id; y < g_height; y += g_nthreads) {
+    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
-            argument->result[y*g_height + x] = argument->matrix[y*g_height + x] + scalar;
+            argument.result[y*g_height + x] = argument.matrix[y*g_height + x] + argument.scalar;
         }
     }
     
@@ -375,12 +374,11 @@ uint32_t* old_scalar_mul(const uint32_t* matrix, uint32_t scalar) {
 }
 
 static void *scal_mul_worker(void *arg) {
-    scalar_arg *argument = (scalar_arg *)arg;
-    ssize_t scalar = argument->scalar;
+    scalar_arg argument = *((scalar_arg *)arg);
 
-    for (size_t y = argument->id; y < g_height; y += g_nthreads) {
+    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
-            argument->result[y*g_height + x] = argument->matrix[y*g_height + x] * scalar;
+            argument.result[y*g_height + x] = argument.matrix[y*g_height + x] * argument.scalar;
         }
     }
     
@@ -433,11 +431,11 @@ uint32_t* old_matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 }
 
 static void *add_worker(void *arg) {
-    matrix_arg *argument = (matrix_arg *)arg;
+    matrix_arg argument = *((matrix_arg *)arg);
 
-    for (size_t y = argument->id; y < g_height; y += g_nthreads) {
+    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
-            argument->result[y*g_height + x] = argument->a[y*g_height + x] + argument->b[y*g_height + x];
+            argument.result[y*g_height + x] = argument.a[y*g_height + x] + argument.b[y*g_height + x];
         }
     }
     
@@ -524,17 +522,17 @@ void old_strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 
 // TODO: see if removing these dereferences is faster.
 static void *strass_add_worker(void *arg) {
-    strass_arg *argument = (strass_arg *)arg;
+    strass_arg argument = *((strass_arg *)arg);
 
-    for (ssize_t y = argument->id; y < argument->ah; y += g_nthreads) {
-        for (ssize_t x = 0; x < argument->aw; ++x) {
-            argument->c[argument->cs*y + x] = argument->a[argument->as*y + x];
+    for (ssize_t y = argument.id; y < argument.ah; y += g_nthreads) {
+        for (ssize_t x = 0; x < argument.aw; ++x) {
+            argument.c[argument.cs*y + x] = argument.a[argument.as*y + x];
         }
     }
 
-    for (ssize_t y = argument->id; y < argument->bh; y += g_nthreads) {
-        for (ssize_t x = 0; x < argument->bw; ++x) {
-            argument->c[argument->cs*y + x] += argument->b[argument->bs*y + x];
+    for (ssize_t y = argument.id; y < argument.bh; y += g_nthreads) {
+        for (ssize_t x = 0; x < argument.bw; ++x) {
+            argument.c[argument.cs*y + x] += argument.b[argument.bs*y + x];
         }
     }
     
@@ -600,17 +598,17 @@ void old_strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 
 // TODO: see if removing these dereferences is faster.
 static void *strass_sub_worker(void *arg) {
-    strass_arg *argument = (strass_arg *)arg;
+    strass_arg argument = *((strass_arg *)arg);
 
-    for (ssize_t y = argument->id; y < argument->ah; y += g_nthreads) {
-        for (ssize_t x = 0; x < argument->aw; ++x) {
-            argument->c[argument->cs*y + x] = argument->a[argument->as*y + x];
+    for (ssize_t y = argument.id; y < argument.ah; y += g_nthreads) {
+        for (ssize_t x = 0; x < argument.aw; ++x) {
+            argument.c[argument.cs*y + x] = argument.a[argument.as*y + x];
         }
     }
 
-    for (ssize_t y = argument->id; y < argument->bh; y += g_nthreads) {
-        for (ssize_t x = 0; x < argument->bw; ++x) {
-            argument->c[argument->cs*y + x] -= argument->b[argument->bs*y + x];
+    for (ssize_t y = argument.id; y < argument.bh; y += g_nthreads) {
+        for (ssize_t x = 0; x < argument.bw; ++x) {
+            argument.c[argument.cs*y + x] -= argument.b[argument.bs*y + x];
         }
     }
     
@@ -654,14 +652,14 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 }
 
 static void *strass_mul_worker(void *arg) {
-    strass_arg *argument = (strass_arg *)arg;
+    strass_arg argument = *((strass_arg *)arg);
     
-    ssize_t min_p = (argument->aw < argument->bh ? argument->aw : argument->bh);
+    ssize_t min_p = (argument.aw < argument.bh ? argument.aw : argument.bh);
 
-    for (ssize_t y = argument->id; y < argument->ah; y += g_nthreads) {
+    for (ssize_t y = argument.id; y < argument.ah; y += g_nthreads) {
         for (ssize_t k = 0; k < min_p; k++) {
-            for (ssize_t x = 0; x < argument->bw; x++) {
-                argument->c[y*argument->cs + x] += argument->a[y*argument->as + k] * argument->b[k*argument->bs + x];
+            for (ssize_t x = 0; x < argument.bw; x++) {
+                argument.c[y*argument.cs + x] += argument.a[y*argument.as + k] * argument.b[k*argument.bs + x];
             }
         }
     }
@@ -892,17 +890,17 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 ////////////////////////////////
 
 static void *sum_worker(void *arg) {
-    sum_arg *argument = (sum_arg *)arg;
+    sum_arg argument = *((sum_arg *)arg);
     
     uint32_t sum = 0;
 
-    for (size_t y = argument->id; y < g_height; y += g_nthreads) {
+    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
-            sum += argument->matrix[y*g_height + x];
+            sum += argument.matrix[y*g_height + x];
         }
     }
     
-    argument->result += sum;
+    ((sum_arg*)arg)->result += sum;
 
     return NULL;
 }
@@ -970,17 +968,17 @@ uint32_t get_trace(const uint32_t* matrix) {
 }
 
 static void *min_worker(void *arg) {
-    sum_arg *argument = (sum_arg *)arg;
+    sum_arg argument = *((sum_arg *)arg);
     
-    uint32_t min = argument->matrix[0];
+    uint32_t min = UINT32_MAX;
 
-    for (size_t y = argument->id; y < g_height; y += g_nthreads) {
+    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
-            if (argument->matrix[y*g_height + x] < min) min = argument->matrix[y*g_height + x];
+            if (argument.matrix[y*g_height + x] < min) min = argument.matrix[y*g_height + x];
         }
     }
     
-    argument->result = min;
+    ((sum_arg*)arg)->result = min;
 
     return NULL;
 }
@@ -1036,17 +1034,17 @@ uint32_t old_get_minimum(const uint32_t* matrix) {
 }
 
 static void *max_worker(void *arg) {
-    sum_arg *argument = (sum_arg *)arg;
+    sum_arg argument = *((sum_arg *)arg);
     
-    uint32_t max = argument->matrix[0];
+    uint32_t max = 0;
 
-    for (size_t y = argument->id; y < g_height; y += g_nthreads) {
+    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
-            if (argument->matrix[y*g_height + x] > max) max = argument->matrix[y*g_height + x];
+            if (argument.matrix[y*g_height + x] > max) max = argument.matrix[y*g_height + x];
         }
     }
     
-    argument->result = max;
+    ((sum_arg*)arg)->result = max;
 
     return NULL;
 }
@@ -1116,19 +1114,18 @@ uint32_t old_get_frequency(const uint32_t* matrix, uint32_t value) {
 }
 
 static void *freq_worker(void *arg) {
-    freq_arg *argument = (freq_arg *)arg;
+    freq_arg argument = *((freq_arg *)arg);
     
-    uint32_t val = argument->value;
     uint32_t freq = 0;
 
-    for (size_t y = argument->id; y < g_height; y += g_nthreads) {
+    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
         //printf("thread %zd computing row %zd\n", argument->id, y);
         for (size_t x = 0; x < g_width; ++x) {
-            if (argument->matrix[y*g_height + x] == val) ++freq;
+            if (argument.matrix[y*g_height + x] == argument.value) ++freq;
         }
     }
     
-    argument->result += freq;
+    ((freq_arg*)arg)->result += freq;
 
     return NULL;
 }
