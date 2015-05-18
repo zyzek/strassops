@@ -63,22 +63,19 @@ typedef struct thr_arg thr_arg;
 
 struct freq_arg {
     const uint32_t* matrix;
-    size_t id;
     uint32_t value;
-    uint32_t result;
+    uint32_t* result;
 };
 typedef struct freq_arg freq_arg;
 
 struct sum_arg {
     const uint32_t* matrix;
-    size_t id;
-    uint32_t result;
+    uint32_t* result;
 };
 typedef struct sum_arg sum_arg;
 
 struct scalar_arg {
     const uint32_t* matrix;
-    size_t id;
     uint32_t scalar;
     uint32_t* result;
 };
@@ -86,7 +83,6 @@ typedef struct scalar_arg scalar_arg;
 
 struct matrix_arg {
     uint32_t* result;
-    size_t id;
     const uint32_t* a;
     const uint32_t* b;
 };
@@ -150,7 +146,6 @@ void set_dimensions(ssize_t order) {
  * Displays given matrix
  */
 void display(const uint32_t* matrix) {
-
     for (ssize_t y = 0; y < g_height; y++) {
         for (ssize_t x = 0; x < g_width; x++) {
             if (x > 0) printf(" ");
@@ -355,9 +350,9 @@ uint32_t* old_scalar_add(const uint32_t* matrix, uint32_t scalar) {
 }
 
 static void *scal_add_worker(void *arg) {
-    scalar_arg argument = *((scalar_arg *)arg);
+    scalar_arg argument = *((scalar_arg *)(((thr_arg *)arg)->args));
 
-    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
+    for (size_t y = ((thr_arg*)arg)->id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
             argument.result[y*g_height + x] = argument.matrix[y*g_height + x] + argument.scalar;
         }
@@ -371,17 +366,21 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
 
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    scalar_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
     
+    scalar_arg operands = {
+        .matrix = matrix,
+        .scalar = scalar,
+        .result = result
+    }; 
+
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (scalar_arg) {
-            .matrix = matrix,
+        args[i] = (thr_arg) {
             .id = i,
-            .scalar = scalar,
-            .result = result
-        };
+            .args = &operands
+       };
     }
-    
+
     pthread_t thread_ids[g_nthreads];
 
     for (size_t i = 0; i < g_nthreads; ++i) {
@@ -412,9 +411,9 @@ uint32_t* old_scalar_mul(const uint32_t* matrix, uint32_t scalar) {
 }
 
 static void *scal_mul_worker(void *arg) {
-    scalar_arg argument = *((scalar_arg *)arg);
+    scalar_arg argument = *((scalar_arg *)(((thr_arg *)arg)->args));
 
-    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
+    for (size_t y = ((thr_arg*)arg)->id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
             argument.result[y*g_height + x] = argument.matrix[y*g_height + x] * argument.scalar;
         }
@@ -428,15 +427,19 @@ uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar) {
 
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    scalar_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
+    
+    scalar_arg operands = {
+        .matrix = matrix,
+        .scalar = scalar,
+        .result = result
+    }; 
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (scalar_arg) {
-            .matrix = matrix,
+        args[i] = (thr_arg) {
             .id = i,
-            .scalar = scalar,
-            .result = result
-        };
+            .args = &operands
+       };
     }
     
     pthread_t thread_ids[g_nthreads];
@@ -469,9 +472,9 @@ uint32_t* old_matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 }
 
 static void *add_worker(void *arg) {
-    matrix_arg argument = *((matrix_arg *)arg);
-
-    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
+    matrix_arg argument = *((matrix_arg *)(((thr_arg *)arg)->args));
+    
+    for (size_t y = ((thr_arg*)arg)->id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
             argument.result[y*g_height + x] = argument.a[y*g_height + x] + argument.b[y*g_height + x];
         }
@@ -485,15 +488,19 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    matrix_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
+    
+    matrix_arg operands = {
+        .result = result,
+        .a = matrix_a,
+        .b = matrix_b,
+    }; 
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (matrix_arg) {
-            .result = result,
+        args[i] = (thr_arg) {
             .id = i,
-            .a = matrix_a,
-            .b = matrix_b
-        };
+            .args = &operands
+       };
     }
     
     pthread_t thread_ids[g_nthreads];
@@ -584,7 +591,7 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
     thr_arg args[g_nthreads];
     
-    strass_arg matrices = {
+    strass_arg operands = {
         .a = a,
         .aw = aw,
         .ah = ah,
@@ -600,7 +607,7 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     for (size_t i = 0; i < g_nthreads; ++i) {
         args[i] = (thr_arg) {
             .id = i,
-            .args = &matrices
+            .args = &operands
        };
     }
     
@@ -664,7 +671,7 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
     thr_arg args[g_nthreads];
     
-    strass_arg matrices = {
+    strass_arg operands = {
         .a = a,
         .aw = aw,
         .ah = ah,
@@ -680,7 +687,7 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     for (size_t i = 0; i < g_nthreads; ++i) {
         args[i] = (thr_arg) {
             .id = i,
-            .args = &matrices
+            .args = &operands
        };
     }
        
@@ -721,7 +728,7 @@ void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
     thr_arg args[g_nthreads];
     
-    strass_arg matrices = {
+    strass_arg operands = {
         .a = a,
         .aw = aw,
         .ah = ah,
@@ -737,7 +744,7 @@ void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     for (size_t i = 0; i < g_nthreads; ++i) {
         args[i] = (thr_arg) {
             .id = i,
-            .args = &matrices
+            .args = &operands
        };
     }
     
@@ -853,7 +860,6 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
       
 
         // Perform actual strassen algorithm.
-        
         strass_sub(b12, b22w, b11h, bs, b22, b22w, b22h, bs, S + n, m);    // S1  = b12 - b22
         strass_add(a11, a11w, a11h, as, a12, a22w, a11h, as, S + 2*n, m);  // S2  = a11 + a12 
         strass_add(a21, a11w, a22h, as, a22, a22w, a22h, as, S + 3*n, m);  // S3  = a21 + a22
@@ -940,17 +946,16 @@ uint32_t* matrix_pow(const uint32_t* matrix, uint32_t exponent) {
 ////////////////////////////////
 
 static void *sum_worker(void *arg) {
-    sum_arg argument = *((sum_arg *)arg);
-    
+    sum_arg argument = *((sum_arg*)(((thr_arg *)arg)->args));
     uint32_t sum = 0;
 
-    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
+    for (size_t y = ((thr_arg*)arg)->id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
             sum += argument.matrix[y*g_height + x];
         }
     }
     
-    ((sum_arg*)arg)->result += sum;
+    __sync_fetch_and_add(argument.result, sum);
 
     return NULL;
 }
@@ -960,16 +965,20 @@ uint32_t get_sum(const uint32_t* matrix) {
     uint32_t sum = 0;
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    sum_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
+    
+    sum_arg operands = {
+        .matrix = matrix,
+        .result = &sum
+    }; 
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (sum_arg) {
-            .matrix = matrix,
+        args[i] = (thr_arg) {
             .id = i,
-            .result = 0
-        };
+            .args = &operands
+       };
     }
-    
+
     pthread_t thread_ids[g_nthreads];
 
     for (size_t i = 0; i < g_nthreads; ++i) {
@@ -980,10 +989,6 @@ uint32_t get_sum(const uint32_t* matrix) {
         pthread_join(thread_ids[i], NULL);
     }
 
-    for (size_t i = 0; i < g_nthreads; ++i) {
-        sum += args[i].result;
-    }
-    
     g_nthreads = temp;
 
     return sum;
@@ -1018,36 +1023,45 @@ uint32_t get_trace(const uint32_t* matrix) {
 }
 
 static void *min_worker(void *arg) {
-    sum_arg argument = *((sum_arg *)arg);
+    sum_arg argument = *((sum_arg*)(((thr_arg *)arg)->args));
     
     uint32_t min = UINT32_MAX;
 
-    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
+    for (size_t y = ((thr_arg*)arg)->id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
             if (argument.matrix[y*g_height + x] < min) min = argument.matrix[y*g_height + x];
         }
     }
     
-    ((sum_arg*)arg)->result = min;
+    // Spinlock if the value was updated as we were performing the comparison.
+    uint32_t curr_min;
+    do {
+        curr_min = *(argument.result);
+        if (min >= curr_min) break;
+    } while (!__sync_bool_compare_and_swap(argument.result, curr_min, min));
 
     return NULL;
 }
 
 uint32_t get_minimum(const uint32_t* matrix) {
 
-    uint32_t min = matrix[0];
+    uint32_t min = UINT32_MAX;
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    sum_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
+    
+    sum_arg operands = {
+        .matrix = matrix,
+        .result = &min
+    }; 
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (sum_arg) {
-            .matrix = matrix,
+        args[i] = (thr_arg) {
             .id = i,
-            .result = 0
-        };
+            .args = &operands
+       };
     }
-    
+
     pthread_t thread_ids[g_nthreads];
 
     for (size_t i = 0; i < g_nthreads; ++i) {
@@ -1056,10 +1070,6 @@ uint32_t get_minimum(const uint32_t* matrix) {
     
     for (size_t i = 0; i < g_nthreads; ++i) {
         pthread_join(thread_ids[i], NULL);
-    }
-
-    for (size_t i = 0; i < g_nthreads; ++i) {
-        if (args[i].result < min) min = args[i].result;
     }
     
     g_nthreads = temp;
@@ -1084,34 +1094,41 @@ uint32_t old_get_minimum(const uint32_t* matrix) {
 }
 
 static void *max_worker(void *arg) {
-    sum_arg argument = *((sum_arg *)arg);
+    sum_arg argument = *((sum_arg*)(((thr_arg *)arg)->args));
     
     uint32_t max = 0;
-
-    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
+    
+    for (size_t y = ((thr_arg*)arg)->id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
             if (argument.matrix[y*g_height + x] > max) max = argument.matrix[y*g_height + x];
         }
     }
     
-    ((sum_arg*)arg)->result = max;
+    uint32_t curr_max;
+    do {
+        curr_max = *(argument.result);
+        if (max <= curr_max) break;
+    } while (!__sync_bool_compare_and_swap(argument.result, curr_max, max));
 
     return NULL;
 }
 
 uint32_t get_maximum(const uint32_t* matrix) {
-
-    uint32_t max = matrix[0];
+    uint32_t max = 0;
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    sum_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
+    
+    sum_arg operands = {
+        .matrix = matrix,
+        .result = &max
+    }; 
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (sum_arg) {
-            .matrix = matrix,
+        args[i] = (thr_arg) {
             .id = i,
-            .result = 0
-        };
+            .args = &operands
+       };
     }
     
     pthread_t thread_ids[g_nthreads];
@@ -1124,10 +1141,6 @@ uint32_t get_maximum(const uint32_t* matrix) {
         pthread_join(thread_ids[i], NULL);
     }
 
-    for (size_t i = 0; i < g_nthreads; ++i) {
-        if (args[i].result > max) max = args[i].result;
-    }
-    
     g_nthreads = temp;
 
     return max;
@@ -1164,19 +1177,17 @@ uint32_t old_get_frequency(const uint32_t* matrix, uint32_t value) {
 }
 
 static void *freq_worker(void *arg) {
-    freq_arg argument = *((freq_arg *)arg);
+    freq_arg argument = *((freq_arg*)(((thr_arg *)arg)->args));
     
     uint32_t freq = 0;
 
-    for (size_t y = argument.id; y < g_height; y += g_nthreads) {
-        //printf("thread %zd computing row %zd\n", argument->id, y);
+    for (size_t y = ((thr_arg*)arg)->id; y < g_height; y += g_nthreads) {
         for (size_t x = 0; x < g_width; ++x) {
             if (argument.matrix[y*g_height + x] == argument.value) ++freq;
         }
     }
     
-    ((freq_arg*)arg)->result += freq;
-
+    __sync_fetch_and_add(argument.result, freq);
     return NULL;
 }
 
@@ -1188,17 +1199,21 @@ uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
     uint32_t freq = 0;
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    freq_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
+    
+    freq_arg operands = {
+        .matrix = matrix,
+        .value = value,
+        .result = &freq
+    }; 
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (freq_arg) {
-            .matrix = matrix,
+        args[i] = (thr_arg) {
             .id = i,
-            .value = value,
-            .result = 0
-        };
+            .args = &operands
+       };
     }
-    
+
     pthread_t thread_ids[g_nthreads];
 
     for (size_t i = 0; i < g_nthreads; ++i) {
@@ -1209,10 +1224,6 @@ uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
         pthread_join(thread_ids[i], NULL);
     }
 
-    for (size_t i = 0; i < g_nthreads; ++i) {
-        freq += args[i].result;
-    }
-    
     g_nthreads = temp;
 
     return freq;
