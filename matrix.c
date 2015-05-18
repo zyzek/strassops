@@ -55,6 +55,12 @@ static ssize_t g_nthreads = 1;
 //enum operation {NONE, SCADD, SCMUL, MADD, MMUL, STADD, STSUB, STMUL, GSUM, GTRACE, GMIN, GMAX, GFREQ};
 //static enum operation curr_op = NONE;
 
+struct thr_arg {
+    size_t id;
+    void *args;
+};
+typedef struct thr_arg thr_arg;
+
 struct freq_arg {
     const uint32_t* matrix;
     size_t id;
@@ -87,7 +93,6 @@ struct matrix_arg {
 typedef struct matrix_arg matrix_arg;
 
 struct strass_arg {
-    size_t id;
     const uint32_t* a;
     size_t aw;
     size_t ah;
@@ -367,7 +372,7 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
     scalar_arg args[g_nthreads];
-
+    
     for (size_t i = 0; i < g_nthreads; ++i) {
         args[i] = (scalar_arg) {
             .matrix = matrix,
@@ -555,15 +560,15 @@ void old_strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 
 // TODO: see if removing these dereferences is faster.
 static void *strass_add_worker(void *arg) {
-    strass_arg argument = *((strass_arg *)arg);
+    strass_arg argument = *((strass_arg*)(((thr_arg *)arg)->args));
 
-    for (ssize_t y = argument.id; y < argument.ah; y += g_nthreads) {
+    for (ssize_t y = ((thr_arg*)arg)->id; y < argument.ah; y += g_nthreads) {
         for (ssize_t x = 0; x < argument.aw; ++x) {
             argument.c[argument.cs*y + x] = argument.a[argument.as*y + x];
         }
     }
 
-    for (ssize_t y = argument.id; y < argument.bh; y += g_nthreads) {
+    for (ssize_t y = ((thr_arg*)arg)->id; y < argument.bh; y += g_nthreads) {
         for (ssize_t x = 0; x < argument.bw; ++x) {
             argument.c[argument.cs*y + x] += argument.b[argument.bs*y + x];
         }
@@ -577,22 +582,26 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  uint32_t* c, ssize_t cs) {
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    strass_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
+    
+    strass_arg matrices = {
+        .a = a,
+        .aw = aw,
+        .ah = ah,
+        .as = as,
+        .b = b,
+        .bw = bw,
+        .bh = bh,
+        .bs = bs,
+        .c = c,
+        .cs = cs
+    }; 
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (strass_arg) {
+        args[i] = (thr_arg) {
             .id = i,
-            .a = a,
-            .aw = aw,
-            .ah = ah,
-            .as = as,
-            .b = b,
-            .bw = bw,
-            .bh = bh,
-            .bs = bs,
-            .c = c,
-            .cs = cs
-        };
+            .args = &matrices
+       };
     }
     
     pthread_t thread_ids[g_nthreads];
@@ -631,15 +640,15 @@ void old_strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 
 // TODO: see if removing these dereferences is faster.
 static void *strass_sub_worker(void *arg) {
-    strass_arg argument = *((strass_arg *)arg);
+    strass_arg argument = *((strass_arg*)(((thr_arg *)arg)->args));
 
-    for (ssize_t y = argument.id; y < argument.ah; y += g_nthreads) {
+    for (ssize_t y = ((thr_arg*)arg)->id; y < argument.ah; y += g_nthreads) {
         for (ssize_t x = 0; x < argument.aw; ++x) {
             argument.c[argument.cs*y + x] = argument.a[argument.as*y + x];
         }
     }
 
-    for (ssize_t y = argument.id; y < argument.bh; y += g_nthreads) {
+    for (ssize_t y = ((thr_arg*)arg)->id; y < argument.bh; y += g_nthreads) {
         for (ssize_t x = 0; x < argument.bw; ++x) {
             argument.c[argument.cs*y + x] -= argument.b[argument.bs*y + x];
         }
@@ -653,24 +662,28 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  uint32_t* c, ssize_t cs) {
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    strass_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
+    
+    strass_arg matrices = {
+        .a = a,
+        .aw = aw,
+        .ah = ah,
+        .as = as,
+        .b = b,
+        .bw = bw,
+        .bh = bh,
+        .bs = bs,
+        .c = c,
+        .cs = cs
+    }; 
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (strass_arg) {
+        args[i] = (thr_arg) {
             .id = i,
-            .a = a,
-            .aw = aw,
-            .ah = ah,
-            .as = as,
-            .b = b,
-            .bw = bw,
-            .bh = bh,
-            .bs = bs,
-            .c = c,
-            .cs = cs
-        };
+            .args = &matrices
+       };
     }
-    
+       
     pthread_t thread_ids[g_nthreads];
 
     for (size_t i = 0; i < g_nthreads; ++i) {
@@ -685,11 +698,11 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 }
 
 static void *strass_mul_worker(void *arg) {
-    strass_arg argument = *((strass_arg *)arg);
+    strass_arg argument = *((strass_arg*)(((thr_arg *)arg)->args));
     
     ssize_t min_p = (argument.aw < argument.bh ? argument.aw : argument.bh);
 
-    for (ssize_t y = argument.id; y < argument.ah; y += g_nthreads) {
+    for (ssize_t y = ((thr_arg*)arg)->id; y < argument.ah; y += g_nthreads) {
         for (ssize_t k = 0; k < min_p; k++) {
             for (ssize_t x = 0; x < argument.bw; x++) {
                 argument.c[y*argument.cs + x] += argument.a[y*argument.as + k] * argument.b[k*argument.bs + x];
@@ -706,22 +719,26 @@ void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 
     size_t temp = g_nthreads;
     g_nthreads = g_nthreads < g_height ? g_nthreads : g_height;
-    strass_arg args[g_nthreads];
+    thr_arg args[g_nthreads];
+    
+    strass_arg matrices = {
+        .a = a,
+        .aw = aw,
+        .ah = ah,
+        .as = as,
+        .b = b,
+        .bw = bw,
+        .bh = bh,
+        .bs = bs,
+        .c = c,
+        .cs = cs
+    }; 
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        args[i] = (strass_arg) {
+        args[i] = (thr_arg) {
             .id = i,
-            .a = a,
-            .aw = aw,
-            .ah = ah,
-            .as = as,
-            .b = b,
-            .bw = bw,
-            .bh = bh,
-            .bs = bs,
-            .c = c,
-            .cs = cs
-        };
+            .args = &matrices
+       };
     }
     
     pthread_t thread_ids[g_nthreads];
