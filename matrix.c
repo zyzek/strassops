@@ -28,6 +28,15 @@
  */
 
 
+/*
+ * 1. Generic parallelisation,
+ * 2. Parallelise everything,
+ * 3. Vectorise
+ * 4. Cachegrind
+ * 5. Think of other shit.
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -335,20 +344,6 @@ uint32_t* transposed(const uint32_t* matrix) {
     return result;
 }
 
-/**
- * Returns new matrix with scalar added to each element
- */
-uint32_t* old_scalar_add(const uint32_t* matrix, uint32_t scalar) {
-
-    uint32_t* result = new_matrix();
-    
-    for (ssize_t i = 0; i < g_elements; ++i) {
-        result[i] = matrix[i] + scalar;
-    }
-
-    return result;
-}
-
 static void *scal_add_worker(void *arg) {
     scalar_arg argument = *((scalar_arg *)(((thr_arg *)arg)->args));
 
@@ -361,6 +356,9 @@ static void *scal_add_worker(void *arg) {
     return NULL;
 }
 
+/**
+ * Returns new matrix with scalar added to each element
+ */
 uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
     uint32_t* result = new_matrix();
 
@@ -396,20 +394,6 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
     return result;
 }
 
-/**
- * Returns new matrix with scalar multiplied to each element
- */
-uint32_t* old_scalar_mul(const uint32_t* matrix, uint32_t scalar) {
-
-    uint32_t* result = new_matrix();
-
-    for (ssize_t i = 0; i < g_elements; ++i) {
-        result[i] = matrix[i] * scalar;
-    }
-    
-    return result;
-}
-
 static void *scal_mul_worker(void *arg) {
     scalar_arg argument = *((scalar_arg *)(((thr_arg *)arg)->args));
 
@@ -422,6 +406,9 @@ static void *scal_mul_worker(void *arg) {
     return NULL;
 }
 
+/**
+ * Returns new matrix with scalar multiplied to each element
+ */
 uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar) {
     uint32_t* result = new_matrix();
 
@@ -457,20 +444,6 @@ uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar) {
     return result;
 }
 
-/**
- * Returns new matrix with elements added at the same index
- */
-uint32_t* old_matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
-
-    uint32_t* result = new_matrix();
-
-    for (ssize_t i = 0; i < g_elements; ++i) {
-        result[i] = matrix_a[i] + matrix_b[i];
-    }
-
-    return result;
-}
-
 static void *add_worker(void *arg) {
     matrix_arg argument = *((matrix_arg *)(((thr_arg *)arg)->args));
     
@@ -483,6 +456,9 @@ static void *add_worker(void *arg) {
     return NULL;
 }
 
+/**
+ * Returns new matrix with elements added at the same index
+ */
 uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
     uint32_t* result = new_matrix();
 
@@ -519,20 +495,6 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 }
 
 /**
- * Assumes result is already zeroed.
- */
-void matrix_mul_nomem(const uint32_t* matrix_a, const uint32_t* matrix_b, uint32_t* result) {
-
-    for (ssize_t y = 0; y < g_height; y++) {
-        for (ssize_t k = 0; k < g_width; k++) {
-            for (ssize_t x = 0; x < g_width; x++) {
-                result[y * g_width + x] += matrix_a[y * g_width + k] * matrix_b[k * g_width + x];
-            }
-        }
-    }
-}
-
-/**
  * Returns new matrix, multiplying the two matrices together
  */
 uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
@@ -544,28 +506,7 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
     return result;
 }
 
-/**
- * Adds a and b, placing the result in c.
- * Details are as strassen().
- */
-void old_strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
-                 const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
-                 uint32_t* c, ssize_t cs) {
-    
-    for (ssize_t y = 0; y < ah; ++y) {
-        for (ssize_t x = 0; x < aw; ++x) {
-            c[cs*y + x] = a[as*y + x];
-        }
-    }
 
-    for (ssize_t y = 0; y < bh; ++y) {
-        for (ssize_t x = 0; x < bw; ++x) {
-            c[cs*y + x] += b[bs*y + x];
-        }
-    }
-}
-
-// TODO: see if removing these dereferences is faster.
 static void *strass_add_worker(void *arg) {
     strass_arg argument = *((strass_arg*)(((thr_arg *)arg)->args));
 
@@ -584,6 +525,10 @@ static void *strass_add_worker(void *arg) {
     return NULL;
 }
 
+/**
+ * Adds a and b, placing the result in c.
+ * Details are as strassen().
+ */
 void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
@@ -624,28 +569,6 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     g_nthreads = temp;
 }
 
-/**
- * Subtracts b from a, placing the result in c.
- * Details are as strassen().
- */ 
-void old_strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
-                 const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
-                 uint32_t* c, ssize_t cs) {
-    
-    for (ssize_t y = 0; y < ah; ++y) {
-        for (ssize_t x = 0; x < aw; ++x) {
-            c[cs*y + x] = a[as*y + x];
-        }
-    }
-
-    for (ssize_t y = 0; y < bh; ++y) {
-        for (ssize_t x = 0; x < bw; ++x) {
-            c[cs*y + x] -= b[bs*y + x];
-        }
-    }
-}
-
-// TODO: see if removing these dereferences is faster.
 static void *strass_sub_worker(void *arg) {
     strass_arg argument = *((strass_arg*)(((thr_arg *)arg)->args));
 
@@ -664,6 +587,10 @@ static void *strass_sub_worker(void *arg) {
     return NULL;
 }
 
+/**
+ * Subtracts b from a, placing the result in c.
+ * Details are as strassen().
+ */ 
 void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
@@ -720,6 +647,11 @@ static void *strass_mul_worker(void *arg) {
     return NULL;
 }
 
+/**
+ * Base case multiplication, 
+ * reverts to this for small-enough matrices.
+ * Details are as strassen().
+ */
 void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
@@ -760,27 +692,6 @@ void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 
     g_nthreads = temp;
 }
-
-/**
- * Base case multiplication, 
- * reverts to this for small-enough matrices.
- * Details are as strassen().
- */
-void old_strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
-                 const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
-                 uint32_t* c, ssize_t cs) {
-
-    ssize_t min_p = (aw < bh ? aw : bh);
-
-    for (ssize_t y = 0; y < ah; y++) {
-        for (ssize_t k = 0; k < min_p; k++) {
-            for (ssize_t x = 0; x < bw; x++) {
-                c[y*cs + x] += a[y*as + k] * b[k*bs + x];
-            }
-        }
-    }
-}
-
 
 /**
  * Multiplies a by b, placing the result in c.
@@ -995,20 +906,6 @@ uint32_t get_sum(const uint32_t* matrix) {
 }
 
 /**
- * Returns the sum of all elements
- */
-uint32_t old_get_sum(const uint32_t* matrix) {
-
-    uint32_t sum = 0;
-
-    for (uint32_t i = 0; i < g_elements; ++i) {
-        sum += matrix[i];
-    }
-
-    return sum;
-}
-
-/**
  * Returns the trace of the matrix
  */
 uint32_t get_trace(const uint32_t* matrix) {
@@ -1077,22 +974,6 @@ uint32_t get_minimum(const uint32_t* matrix) {
     return min;
 }
 
-/**
- * Returns the smallest value in the matrix
- */
-uint32_t old_get_minimum(const uint32_t* matrix) {
-
-    uint32_t min = matrix[0];
-
-    for (uint32_t i = 1; i < g_elements; ++i) {
-        if (matrix[i] < min) {
-            min = matrix[i];
-        }
-    } 
-    
-    return min;
-}
-
 static void *max_worker(void *arg) {
     sum_arg argument = *((sum_arg*)(((thr_arg *)arg)->args));
     
@@ -1146,35 +1027,6 @@ uint32_t get_maximum(const uint32_t* matrix) {
     return max;
 }
 
-/**
- * Returns the largest value in the matrix
- */
-uint32_t old_get_maximum(const uint32_t* matrix) {
-
-    uint32_t max = matrix[0];
-
-    for (uint32_t i = 1; i < g_elements; ++i) {
-        if (matrix[i] > max) {
-            max = matrix[i];
-        }
-    }
-
-    return max;
-}
-
-/**
- * Returns the frequency of the value in the matrix
- */
-uint32_t old_get_frequency(const uint32_t* matrix, uint32_t value) {
-    
-    uint32_t freq = 0;
-
-    for (uint32_t i = 0; i < g_elements; ++i) {
-        if (matrix[i] == value) ++freq;
-    }
-
-    return freq;
-}
 
 static void *freq_worker(void *arg) {
     freq_arg argument = *((freq_arg*)(((thr_arg *)arg)->args));
