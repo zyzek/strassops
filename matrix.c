@@ -22,19 +22,17 @@
  */
 
 
-
 /*
  * Check misses, cachegrind
  */
 
-
 /*
  * 1. Generic parallelisation,
- * 2. Parallelise everything,
- * 3. Vectorise
- * 4. Cachegrind
- * 5. Think of other shit.
- *
+ * 2. Parallelise everything, though not trace, other trivial shit.
+ * 3. Save operations, such as add, mul, etc. perform them only before idisplaying, multiplying matrices (in particular, a matrix X will be aX + c)
+ * 4. Vectorise
+ * 5. Cachegrind
+ * 6. Think of other shit.
  */
 
 #include <stdio.h>
@@ -46,6 +44,7 @@
 #include <inttypes.h>
 
 #include <string.h>
+#include <unistd.h>
 
 #include "matrix.h"
 
@@ -61,8 +60,8 @@ static ssize_t g_elements = 0;
 
 static ssize_t g_nthreads = 1;
 
-//enum operation {NONE, SCADD, SCMUL, MADD, MMUL, STADD, STSUB, STMUL, GSUM, GTRACE, GMIN, GMAX, GFREQ};
-//static enum operation curr_op = NONE;
+enum operation {NONE, SCADD, SCMUL, MADD, MMUL, STADD, STSUB, STMUL, GSUM, GTRACE, GMIN, GMAX, GFREQ};
+static enum operation curr_op = NONE;
 
 struct thr_arg {
     size_t id;
@@ -115,6 +114,10 @@ typedef struct strass_arg strass_arg;
 ////////////////////////////////
 ///     UTILITY FUNCTIONS    ///
 ////////////////////////////////
+/*void create_threads(void) {
+    
+}*/
+
 
 /**
  * Returns pseudorandom number determined by the seed
@@ -137,7 +140,9 @@ void set_seed(uint32_t seed) {
  * Sets the number of threads available
  */
 void set_nthreads(ssize_t count) {
-    g_nthreads = count;
+    
+    //g_nthreads = count;
+    g_nthreads = sysconf( _SC_NPROCESSORS_ONLN );
 }
 
 /**
