@@ -1,5 +1,5 @@
 CC = clang
-CFLAGS = -O1 -std=gnu11 -Wall -Werror -g -mmmx -msse -msse2 -msse3 -mno-mmx -mno-sse -mno-sse2 -m3dnow -mno-3dnow
+CFLAGS = -O1 -std=gnu11 -Wall -g -mmmx -msse -msse2 -msse3 -mno-mmx -mno-sse -mno-sse2 -m3dnow -mno-3dnow
 LDFLAGS = -pthread
 
 .PHONY: all clean

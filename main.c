@@ -8,6 +8,7 @@
 #include <inttypes.h>
 
 #include <time.h>
+#include <pthread.h>
 
 #include "matrix.h"
 
@@ -39,6 +40,9 @@ static ssize_t g_nthreads = 0; /* 1 <= nthreads <= 256 */
 static ssize_t g_nentries = 0; /* 0 <= nentries <= 512 */
 
 static entry** g_entries = NULL;
+
+extern enum operation curr_op;
+extern pthread_barrier_t comm_barrier;
 
 /**
  * Adds entry to list of entries
@@ -109,8 +113,9 @@ void define_settings(int argc, char** argv) {
     }
 
     g_order = atoll(argv[1]);
-    g_nthreads = atoll(argv[2]);
-
+    //g_nthreads = atoll(argv[2]);
+    g_nthreads = sysconf( _SC_NPROCESSORS_ONLN );
+    
     if (g_order < 1 || g_nthreads < 1) {
         goto invalid;
     }
@@ -421,24 +426,39 @@ void test_sum(void) {
 
     free(matrix);
 }
+
 /**
  * Main function
  */
 int main(int argc, char** argv)
 {
-    define_settings(argc, argv);
-    //compute_engine();
-
     clock_t begin, end;
     double time_spent;
 
     begin = clock();
-    test_mul();
+    
+    define_settings(argc, argv);
+    
+    pthread_t thread_ids[g_nthreads];
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        pthread_create(thread_ids + i, NULL, thr_worker, (void*)i);
+    }
+    
+    pthread_barrier_wait(&comm_barrier);
+    puts("main thread initialised");
+
+    compute_engine();
+    //test_mul();
+    
+    for (size_t i = 0; i < g_nthreads; ++i) {
+        pthread_join(thread_ids[i], NULL);
+    }
+    
     end = clock();
 
     time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
     printf("Time elapsed: %.5f\n", time_spent);
-
+    
     return 0;
 }
