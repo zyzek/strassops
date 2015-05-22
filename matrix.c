@@ -48,7 +48,7 @@
 
 #include "matrix.h"
 
-#define STRASS_THRESH 2
+#define STRASS_THRESH 100
 
 //typedef uint32_t v4si __attribute__ ((vector_size(128)));
 
@@ -60,9 +60,11 @@ static ssize_t g_elements = 0;
 
 static ssize_t g_nthreads = 1;
 
-pthread_barrier_t comm_barrier_a;
-pthread_barrier_t comm_barrier_b;
-pthread_barrier_t *comm_barrier = &comm_barrier_a;
+pthread_cond_t comm_cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t comm_mut = PTHREAD_MUTEX_INITIALIZER;
+pthread_barrier_t comm_barr;
+static volatile bool comm_done = true;
+static volatile size_t completed = 0;
 
 enum operation {NONE, DIE, SCADD, SCMUL, MADD, MMUL, STADD, STSUB, STMUL, GSUM, GTRACE, GMIN, GMAX, GFREQ};
 static volatile enum operation curr_op = NONE;
@@ -122,8 +124,10 @@ typedef struct strass_arg strass_arg;
 ///     UTILITY FUNCTIONS    ///
 ////////////////////////////////
 
-void flip_barrier(void) {
-    comm_barrier = (*comm_barrier == comm_barrier_a) ? &comm_barrier_b : &comm_barrier_a;
+void check_done(void) {
+    __sync_fetch_and_add(&completed, 1);
+
+    if (completed == g_nthreads) comm_done = true;
 }
 
 /** 
@@ -132,15 +136,17 @@ void flip_barrier(void) {
 void *thr_worker(void *arg) {
     const size_t id = (size_t)arg;
     
-    pthread_barrier_wait(&comm_barrier);
-    printf("thread %zd initialised.\n", id);
+    pthread_barrier_wait(&comm_barr);
+    //printf("thread %zd initialised.\n", id);
+    //sleep(1);
 
     while (curr_op != DIE) {
+        pthread_mutex_lock(&comm_mut);
+        //puts("thread waiting");
+        while (comm_done) pthread_cond_wait(&comm_cond, &comm_mut);
+        pthread_mutex_unlock(&comm_mut);
         switch (curr_op) {
-            case NONE:
-                break;
             case SCADD:
-               printf("thread %zd adding\n", id);
                scalar_add_worker(id);
                break;
             case SCMUL:
@@ -150,12 +156,15 @@ void *thr_worker(void *arg) {
                matrix_add_worker(id);
                break;
             case STADD:
+               //printf("worker %zd adding\n", id);
                strass_add_worker(id);
                break;
             case STSUB:
+               //printf("worker %zd subbing\n", id);
                strass_sub_worker(id);
                break;
             case STMUL:
+               //printf("worker %zd mulling\n", id);
                strass_mul_worker(id);
                break;
             case GSUM:
@@ -169,6 +178,9 @@ void *thr_worker(void *arg) {
             default:
                break;
         }
+        //puts("thread at barrier");
+        check_done();
+        pthread_barrier_wait(&comm_barr);
     }
 
     return NULL;
@@ -194,7 +206,7 @@ void set_seed(uint32_t seed) {
  */
 void set_nthreads(ssize_t count) {
     g_nthreads = count;
-    pthread_barrier_init(&comm_barrier, NULL, count + 1);
+    pthread_barrier_init(&comm_barr, NULL, count + 1);
 }
 
 /**
@@ -410,10 +422,8 @@ void scalar_add_worker(const size_t id) {
         }
     }
     
-    printf("thread %zd finished adding\n", id);
+    //printf("thread %zd finished adding\n", id);
 
-    pthread_barrier_wait(&comm_barrier);
-    curr_op = NONE;
 }
 
 uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
@@ -427,10 +437,17 @@ uint32_t* scalar_add(const uint32_t* matrix, uint32_t scalar) {
 
     g_operand = &operands;
      
-    puts("adding");
+    //puts("adding");
     curr_op = SCADD;
-    pthread_barrier_wait(&comm_barrier);
+    pthread_mutex_lock(&comm_mut);
+    comm_done = false;
+    completed = 0;
     
+    pthread_cond_broadcast(&comm_cond);
+    pthread_mutex_unlock(&comm_mut);
+    pthread_barrier_wait(&comm_barr);
+
+    //comm_done = true;
     return result;
 }
 
@@ -443,8 +460,6 @@ void scalar_mul_worker(const size_t id) {
         }
     }
 
-    pthread_barrier_wait(&comm_barrier);    
-    curr_op = NONE;
 }
 
 /**
@@ -462,8 +477,15 @@ uint32_t* scalar_mul(const uint32_t* matrix, uint32_t scalar) {
     g_operand = &operands;
 
     curr_op = SCMUL;
-    pthread_barrier_wait(&comm_barrier);
+    
+    pthread_mutex_lock(&comm_mut);
+    comm_done = false;
+    pthread_cond_broadcast(&comm_cond);
+    pthread_mutex_unlock(&comm_mut);
+    pthread_barrier_wait(&comm_barr);
 
+    //comm_done = true;
+    
     return result;
 }
 
@@ -476,8 +498,6 @@ void matrix_add_worker(const size_t id) {
         }
     }
 
-    pthread_barrier_wait(&comm_barrier);
-    curr_op = NONE;
 }
 
 /**
@@ -495,8 +515,15 @@ uint32_t* matrix_add(const uint32_t* matrix_a, const uint32_t* matrix_b) {
     g_operand = &operands;
 
     curr_op = MADD;
-    pthread_barrier_wait(&comm_barrier);
     
+    pthread_mutex_lock(&comm_mut);
+    comm_done = false;
+    completed = 0;
+
+    pthread_cond_broadcast(&comm_cond);
+    pthread_mutex_unlock(&comm_mut);
+    pthread_barrier_wait(&comm_barr);
+    //comm_done = true;
     return result;
 }
 
@@ -516,6 +543,8 @@ uint32_t* matrix_mul(const uint32_t* matrix_a, const uint32_t* matrix_b) {
 void strass_add_worker(const size_t id) {
     strass_arg argument = *((strass_arg*)g_operand);
 
+    //printf("%zd, %zd, %zd, %zd, %zd, %zd, %zd\n", argument.aw, argument.ah, argument.as, 
+    //                                                 argument.bw, argument.bh, argument.bs, argument.cs);
     for (ssize_t y = id; y < argument.ah; y += g_nthreads) {
         for (ssize_t x = 0; x < argument.aw; ++x) {
             argument.c[argument.cs*y + x] = argument.a[argument.as*y + x];
@@ -528,8 +557,6 @@ void strass_add_worker(const size_t id) {
         }
     }
     
-    pthread_barrier_wait(&comm_barrier);
-    curr_op = NONE;
 }
 
 /**
@@ -539,7 +566,7 @@ void strass_add_worker(const size_t id) {
 void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
-   puts("strassadd");
+    //puts("strassadd");
     strass_arg operands = {
         .a = a,
         .aw = aw,
@@ -556,11 +583,22 @@ void strass_add(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     g_operand = &operands;
 
     curr_op = STADD;
-    pthread_barrier_wait(&comm_barrier);
+    pthread_mutex_lock(&comm_mut);
+    comm_done = false;
+    completed = 0;
+
+    pthread_cond_broadcast(&comm_cond);
+    pthread_mutex_unlock(&comm_mut);
+    
+    //puts("main thread at barrier");
+    pthread_barrier_wait(&comm_barr);
+    //comm_done = true;
 }
 
 void strass_sub_worker(const size_t id) {
     strass_arg argument = *((strass_arg*)g_operand);
+    //printf("%zd, %zd, %zd, %zd, %zd, %zd, %zd\n", argument.aw, argument.ah, argument.as, 
+    //                                                 argument.bw, argument.bh, argument.bs, argument.cs);
 
     for (ssize_t y = id; y < argument.ah; y += g_nthreads) {
         for (ssize_t x = 0; x < argument.aw; ++x) {
@@ -573,9 +611,6 @@ void strass_sub_worker(const size_t id) {
             argument.c[argument.cs*y + x] -= argument.b[argument.bs*y + x];
         }
     }
-    
-    pthread_barrier_wait(&comm_barrier);    
-    curr_op = NONE;
 }
 
 /**
@@ -597,14 +632,23 @@ void strass_sub(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         .c = c,
         .cs = cs
     }; 
-
+    
+    //puts("strasssub");
     g_operand = &operands;
     curr_op = STSUB;
-    pthread_barrier_wait(&comm_barrier);
+    pthread_mutex_lock(&comm_mut);
+    comm_done = false;
+    completed = 0;
+
+    pthread_cond_broadcast(&comm_cond);
+    pthread_mutex_unlock(&comm_mut);
+    
+    //puts("main thread at barrier");
+    pthread_barrier_wait(&comm_barr);
+    //comm_done = true;
 }
 
 void strass_mul_worker(const size_t id) {
-    printf("thread %zd mult\n", id);
     strass_arg argument = *((strass_arg*)g_operand);
     
     ssize_t min_p = (argument.aw < argument.bh ? argument.aw : argument.bh);
@@ -617,8 +661,6 @@ void strass_mul_worker(const size_t id) {
         }
     }
 
-    pthread_barrier_wait(&comm_barrier); 
-    curr_op = NONE;
 }
 
 /**
@@ -629,7 +671,7 @@ void strass_mul_worker(const size_t id) {
 void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
                  const uint32_t* b, ssize_t bw, ssize_t bh, ssize_t bs,
                  uint32_t* c, ssize_t cs) {
-    puts("strassmul");
+    //puts("strassmul");
     strass_arg operands = {
         .a = a,
         .aw = aw,
@@ -645,8 +687,17 @@ void strass_mul(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
     
     g_operand = &operands;
     curr_op = STMUL;
-    pthread_barrier_wait(&comm_barrier);
+    
+    pthread_mutex_lock(&comm_mut);
+    comm_done = false;
+    completed = 0;
 
+    pthread_cond_broadcast(&comm_cond);
+    pthread_mutex_unlock(&comm_mut);
+    
+    //puts("main thread at barrier");
+    pthread_barrier_wait(&comm_barr);
+    //comm_done = true;
 }
 
 /**
@@ -728,25 +779,15 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
 
         // Perform actual strassen algorithm.
         strass_sub(b12, b22w, b11h, bs, b22, b22w, b22h, bs, S + n, m);    // S1  = b12 - b22
-        pthread_barrier_wait(&comm_barrier);
         strass_add(a11, a11w, a11h, as, a12, a22w, a11h, as, S + 2*n, m);  // S2  = a11 + a12 
-        pthread_barrier_wait(&comm_barrier);
         strass_add(a21, a11w, a22h, as, a22, a22w, a22h, as, S + 3*n, m);  // S3  = a21 + a22
-        pthread_barrier_wait(&comm_barrier);
         strass_sub(b21, b11w, b22h, bs, b11, b11w, b11h, bs, S + 4*n, m);  // S4  = b21 - b11
-        pthread_barrier_wait(&comm_barrier);
         strass_add(a11, a11w, a11h, as, a22, a22w, a22h, as, S + 5*n, m);  // S5  = a11 + a22
-        pthread_barrier_wait(&comm_barrier);
         strass_add(b11, b11w, b11h, bs, b22, b22w, b22h, bs, S + 6*n, m);  // S6  = b11 + b22
-        pthread_barrier_wait(&comm_barrier);
         strass_sub(a12, a22w, a11h, as, a22, a22w, a22h, as, S + 7*n, m);  // S7  = a12 - a22
-        pthread_barrier_wait(&comm_barrier);
         strass_add(b21, b11w, b22h, bs, b22, b22w, b22h, bs, S + 8*n, m);  // S8  = b21 + b22
-        pthread_barrier_wait(&comm_barrier);
         strass_sub(a11, a11w, a11h, as, a21, a11w, a22h, as, S + 9*n, m);  // S9  = a11 - a21
-        pthread_barrier_wait(&comm_barrier);
         strass_add(b11, b11w, b11h, bs, b12, b22w, b11h, bs, S + 10*n, m); // S10 = b11 + b12
-        pthread_barrier_wait(&comm_barrier);
 
         strassen(a11, a11w, a11h, as, S + n, m, m, m, S, m); //P1 = A11*S1
         memset(S + n, 0, n*sizeof(uint32_t));
@@ -763,21 +804,13 @@ void strassen(const uint32_t* a, ssize_t aw, ssize_t ah, ssize_t as,
         
         // No need to zero these, since entries of S are the same size, c is already zeroed.
         strass_add(S + 4*n, m, m, m, S + 3*n, m, m, m, S + 10*n, m);
-        pthread_barrier_wait(&comm_barrier);
         strass_sub(S + 5*n, m, m, m, S + n, m, m, m, S + 9*n, m);
-        pthread_barrier_wait(&comm_barrier);
         strass_add(S + 10*n, c11w, c11h, m, S + 9*n, c11w, c11h, m, c11, cs); // C11 = P5 + P4 - P2 + P6
-        pthread_barrier_wait(&comm_barrier);
         strass_add(S, c22w, c11h, m, S + n, c22w, c11h, m, c12, cs); // C12 = P1 + P2
-        pthread_barrier_wait(&comm_barrier);
         strass_add(S + 2*n, c11w, c22h, m, S + 3*n, c11w, c22h, m, c21, cs); // C21 = P3 + P4
-        pthread_barrier_wait(&comm_barrier);
         strass_add(S, m, m, m, S + 4*n, m, m, m, S + n, m);
-        pthread_barrier_wait(&comm_barrier);
         strass_add(S + 2*n, m, m, m, S + 6*n, m, m, m, S + 3*n, m);
-        pthread_barrier_wait(&comm_barrier);
         strass_sub(S + n, c22w, c22h, m, S + 3*n, c22w, c22h, m, c22, cs); // C22 = P1 + P5 - P3 - P7
-        pthread_barrier_wait(&comm_barrier);
         
         free(S);
     }

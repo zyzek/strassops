@@ -42,7 +42,7 @@ static ssize_t g_nentries = 0; /* 0 <= nentries <= 512 */
 static entry** g_entries = NULL;
 
 extern enum operation curr_op;
-extern pthread_barrier_t comm_barrier;
+extern pthread_barrier_t comm_barr;
 
 /**
  * Adds entry to list of entries
@@ -113,8 +113,8 @@ void define_settings(int argc, char** argv) {
     }
 
     g_order = atoll(argv[1]);
-    //g_nthreads = atoll(argv[2]);
-    g_nthreads = sysconf( _SC_NPROCESSORS_ONLN );
+    g_nthreads = atoll(argv[2]);
+    //g_nthreads = sysconf( _SC_NPROCESSORS_ONLN );
     
     if (g_order < 1 || g_nthreads < 1) {
         goto invalid;
@@ -376,7 +376,7 @@ void compute_engine(void) {
             printf("\n");
             continue;
         }
-
+        
         if (strcasecmp(command, "bye") == 0) {
             command_bye();
         } else if (strcasecmp(command, "help") == 0) {
@@ -403,7 +403,6 @@ void test_mul(void) {
         free(matrix_mul(matrix, matrix));
     }
 
-    //free(matrix_pow(matrix, 100));
     free(matrix);
 }
 
@@ -432,33 +431,19 @@ void test_sum(void) {
  */
 int main(int argc, char** argv)
 {
-    clock_t begin, end;
-    double time_spent;
-
-    begin = clock();
-    
     define_settings(argc, argv);
     
     pthread_t thread_ids[g_nthreads];
     for (size_t i = 0; i < g_nthreads; ++i) {
         pthread_create(thread_ids + i, NULL, thr_worker, (void*)i);
     }
+    pthread_barrier_wait(&comm_barr);
     
-    pthread_barrier_wait(&comm_barrier);
-    puts("main thread initialised");
-
     compute_engine();
-    //test_mul();
     
     for (size_t i = 0; i < g_nthreads; ++i) {
         pthread_join(thread_ids[i], NULL);
     }
-    
-    end = clock();
-
-    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-
-    printf("Time elapsed: %.5f\n", time_spent);
     
     return 0;
 }

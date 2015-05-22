@@ -11,6 +11,7 @@ void set_seed(uint32_t value);
 void set_nthreads(ssize_t count);
 void set_dimensions(ssize_t width);
 void *thr_worker(void *arg); 
+void wait_flip(void);
 
 void display(const uint32_t* matrix);
 void display_row(const uint32_t* matrix, ssize_t row);
