@@ -41,7 +41,8 @@ static ssize_t g_nentries = 0; /* 0 <= nentries <= 512 */
 
 static entry** g_entries = NULL;
 
-extern enum operation curr_op;
+pthread_t *thread_ids_p;
+
 extern pthread_barrier_t comm_barr;
 
 /**
@@ -134,9 +135,14 @@ invalid:
  * Bye command
  */
 void command_bye(void) {
-
     printf("bye\n");
     release();
+    
+    kill_threads();
+    
+    /*for (size_t i = 0; i < g_nthreads; ++i) {
+        pthread_join(thread_ids_p[i], NULL);
+    }*/
     exit(0);
 }
 
@@ -434,6 +440,8 @@ int main(int argc, char** argv)
     define_settings(argc, argv);
     
     pthread_t thread_ids[g_nthreads];
+    thread_ids_p = thread_ids;
+
     for (size_t i = 0; i < g_nthreads; ++i) {
         pthread_create(thread_ids + i, NULL, thr_worker, (void*)i);
     }
@@ -441,9 +449,7 @@ int main(int argc, char** argv)
     
     compute_engine();
     
-    for (size_t i = 0; i < g_nthreads; ++i) {
-        pthread_join(thread_ids[i], NULL);
-    }
+    
     
     return 0;
 }

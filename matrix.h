@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+
 /* utility functions */
 
 uint32_t fast_rand(void);
@@ -10,8 +11,9 @@ uint32_t fast_rand(void);
 void set_seed(uint32_t value);
 void set_nthreads(ssize_t count);
 void set_dimensions(ssize_t width);
+
+void kill_threads(void);
 void *thr_worker(void *arg); 
-void wait_flip(void);
 
 void display(const uint32_t* matrix);
 void display_row(const uint32_t* matrix, ssize_t row);
@@ -42,6 +44,12 @@ void matrix_add_worker(const size_t id);
 void strass_add_worker(const size_t id);
 void strass_sub_worker(const size_t id);
 void strass_mul_worker(const size_t id);
+
+void sum_worker(const size_t id);
+void min_worker(const size_t id);
+void max_worker(const size_t id);
+void freq_worker(const size_t id);
+
 
 void matrix_mul_nomem(const uint32_t* matrix_a, const uint32_t* matrix_b, uint32_t* result);
 
