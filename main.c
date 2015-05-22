@@ -443,12 +443,12 @@ int main(int argc, char** argv)
     thread_ids_p = thread_ids;
 
     for (size_t i = 0; i < g_nthreads; ++i) {
-        pthread_create(thread_ids + i, NULL, thr_worker, (void*)i);
+        while(pthread_create(thread_ids + i, NULL, thr_worker, (void*)i));
     }
-    pthread_barrier_wait(&comm_barr);
+    //pthread_barrier_wait(&comm_barr);
     
     compute_engine();
-    
+    //test_mul();
     
     
     return 0;

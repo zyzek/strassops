@@ -151,7 +151,7 @@ void kill_threads(void) {
  */
 void *thr_worker(void *arg) {
     const size_t id = (size_t)arg;
-    pthread_barrier_wait(&comm_barr);
+    //pthread_barrier_wait(&comm_barr);
 
     while (curr_op != DIE) {
         
@@ -195,7 +195,6 @@ void *thr_worker(void *arg) {
             default:
                break;
         }
-        
         check_done();
         pthread_barrier_wait(&comm_barr);
     }
@@ -843,6 +842,7 @@ uint32_t get_sum(const uint32_t* matrix) {
 
     g_operand = &operands;
     curr_op = GSUM;
+    BROAD_COMM
 
     return sum;
 }
@@ -871,7 +871,6 @@ void min_worker(const size_t id) {
             if (argument.matrix[y*g_height + x] < min) min = argument.matrix[y*g_height + x];
         }
     }
-    
     // Spinlock if the value was updated as we were performing the comparison.
     uint32_t curr_min;
     do {
@@ -887,8 +886,11 @@ uint32_t get_minimum(const uint32_t* matrix) {
         .matrix = matrix,
         .result = &min
     }; 
+
     g_operand = &operands;
     curr_op = GMIN;
+    BROAD_COMM
+    
     return min;
 }
 
@@ -921,6 +923,7 @@ uint32_t get_maximum(const uint32_t* matrix) {
 
     g_operand = &operands;
     curr_op = GMAX;
+    BROAD_COMM;
 
     return max;
 }
@@ -955,6 +958,7 @@ uint32_t get_frequency(const uint32_t* matrix, uint32_t value) {
 
     g_operand = &operands;
     curr_op = GFREQ;
+    BROAD_COMM;
 
     return freq;
 }
